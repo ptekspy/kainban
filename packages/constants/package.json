@@ -1,0 +1,25 @@
+{
+	"name": "@repo/constants",
+	"version": "0.0.0",
+	"private": true,
+	"exports": {
+		"./Kanban/board": "./src/Kanban/board.ts",
+		"./Kanban/mock-tasks": "./src/Kanban/mock-tasks.ts"
+	},
+	"scripts": {
+		"lint": "eslint . --max-warnings 0",
+		"check-types": "tsc --noEmit",
+		"test": "vitest run"
+	},
+	"dependencies": {
+		"@repo/types": "workspace:*"
+	},
+	"devDependencies": {
+		"@repo/eslint-config": "workspace:*",
+		"@repo/typescript-config": "workspace:*",
+		"@types/node": "^22.15.3",
+		"eslint": "^9.39.1",
+		"typescript": "5.9.2",
+		"vitest": "^3.2.4"
+	}
+}
