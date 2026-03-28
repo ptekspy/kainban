@@ -8,13 +8,18 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint --max-warnings 0",
-    "check-types": "next typegen && tsc --noEmit"
+    "check-types": "next typegen && tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@repo/ui": "workspace:*",
+    "@tailwindcss/postcss": "^4.2.2",
     "next": "16.2.0",
+    "postcss": "^8.5.8",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "tailwind-merge": "^3.5.0",
+    "tailwindcss": "^4.2.2"
   },
   "devDependencies": {
     "@repo/eslint-config": "workspace:*",
@@ -23,6 +28,7 @@
     "@types/react": "19.2.2",
     "@types/react-dom": "19.2.2",
     "eslint": "^9.39.1",
-    "typescript": "5.9.2"
+    "typescript": "5.9.2",
+    "vitest": "^3.2.4"
   }
 }
