@@ -10,6 +10,7 @@ import { useState } from "react";
 import { Button } from "../Button/button";
 import { KanbanColumn } from "../KanbanColumn/kanban-column";
 import { KanbanTaskCard } from "../KanbanTaskCard/kanban-task-card";
+import { Modal } from "../Modal/modal";
 
 interface KanbanBoardProps {
 	id?: string;
@@ -108,74 +109,6 @@ export const KanbanBoard = ({ id = "kanban-board" }: KanbanBoardProps) => {
 						);
 					})}
 				</div>
-				{isCreateProjectOpen && (
-					<div className="mt-6 rounded-3xl border border-slate-800 bg-slate-900 p-4">
-						<h2 className="text-lg font-semibold">Create project</h2>
-						<div className="mt-4 space-y-3">
-							<label className="block text-sm">
-								<span className="mb-1 block text-slate-300">Name</span>
-								<input
-									value={projectForm.name}
-									onChange={(event) =>
-										setProjectForm((current) => ({
-											...current,
-											name: event.target.value,
-										}))
-									}
-									placeholder="Project Phoenix"
-									className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-slate-50 outline-none placeholder:text-slate-500 focus:border-cyan-300"
-								/>
-							</label>
-							<label className="block text-sm">
-								<span className="mb-1 block text-slate-300">Abbreviation</span>
-								<input
-									value={projectForm.abbreviation}
-									onChange={(event) =>
-										setProjectForm((current) => ({
-											...current,
-											abbreviation: event.target.value.toUpperCase(),
-										}))
-									}
-									placeholder="PHX"
-									className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-slate-50 uppercase outline-none placeholder:text-slate-500 focus:border-cyan-300"
-								/>
-							</label>
-							<label className="block text-sm">
-								<span className="mb-1 block text-slate-300">
-									GitHub repo URL
-								</span>
-								<input
-									type="url"
-									value={projectForm.githubRepoUrl}
-									onChange={(event) =>
-										setProjectForm((current) => ({
-											...current,
-											githubRepoUrl: event.target.value,
-										}))
-									}
-									placeholder="https://github.com/org/repo"
-									className="w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-slate-50 outline-none placeholder:text-slate-500 focus:border-cyan-300"
-								/>
-							</label>
-						</div>
-						<div className="mt-4 flex gap-3">
-							<Button
-								type="button"
-								onClick={handleSubmitProject}
-								disabled={isCreateDisabled}
-							>
-								Create
-							</Button>
-							<Button
-								type="button"
-								intent="secondary"
-								onClick={() => setIsCreateProjectOpen(false)}
-							>
-								Cancel
-							</Button>
-						</div>
-					</div>
-				)}
 			</aside>
 			<div className="flex-1 px-4 py-6 lg:px-8">
 				<div className="rounded-[2rem] border border-slate-200 bg-white/90 p-6 shadow-[0_24px_80px_rgba(15,23,42,0.08)] backdrop-blur">
@@ -235,6 +168,74 @@ export const KanbanBoard = ({ id = "kanban-board" }: KanbanBoardProps) => {
 					</div>
 				</div>
 			</div>
+			<Modal
+				isOpen={isCreateProjectOpen}
+				onClose={() => setIsCreateProjectOpen(false)}
+				title="Create project"
+				description="Add a project name, ticket abbreviation, and GitHub repository URL."
+			>
+				<div className="space-y-3">
+					<label className="block text-sm">
+						<span className="mb-1 block text-slate-700">Name</span>
+						<input
+							value={projectForm.name}
+							onChange={(event) =>
+								setProjectForm((current) => ({
+									...current,
+									name: event.target.value,
+								}))
+							}
+							placeholder="Project Phoenix"
+							className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-slate-950 outline-none placeholder:text-slate-400 focus:border-cyan-500"
+						/>
+					</label>
+					<label className="block text-sm">
+						<span className="mb-1 block text-slate-700">Abbreviation</span>
+						<input
+							value={projectForm.abbreviation}
+							onChange={(event) =>
+								setProjectForm((current) => ({
+									...current,
+									abbreviation: event.target.value.toUpperCase(),
+								}))
+							}
+							placeholder="PHX"
+							className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-slate-950 uppercase outline-none placeholder:text-slate-400 focus:border-cyan-500"
+						/>
+					</label>
+					<label className="block text-sm">
+						<span className="mb-1 block text-slate-700">GitHub repo URL</span>
+						<input
+							type="url"
+							value={projectForm.githubRepoUrl}
+							onChange={(event) =>
+								setProjectForm((current) => ({
+									...current,
+									githubRepoUrl: event.target.value,
+								}))
+							}
+							placeholder="https://github.com/org/repo"
+							className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-slate-950 outline-none placeholder:text-slate-400 focus:border-cyan-500"
+						/>
+					</label>
+				</div>
+				<div className="mt-6 flex gap-3">
+					<Button
+						type="button"
+						onClick={handleSubmitProject}
+						disabled={isCreateDisabled}
+					>
+						Create
+					</Button>
+					<Button
+						type="button"
+						intent="secondary"
+						onClick={() => setIsCreateProjectOpen(false)}
+					>
+						Cancel
+					</Button>
+				</div>
+			</Modal>
 		</section>
 	);
 };

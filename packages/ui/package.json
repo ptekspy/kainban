@@ -6,7 +6,8 @@
 		"./Button": "./src/Button/button.tsx",
 		"./KanbanBoard": "./src/KanbanBoard/kanban-board.tsx",
 		"./KanbanColumn": "./src/KanbanColumn/kanban-column.tsx",
-		"./KanbanTaskCard": "./src/KanbanTaskCard/kanban-task-card.tsx"
+		"./KanbanTaskCard": "./src/KanbanTaskCard/kanban-task-card.tsx",
+		"./Modal": "./src/Modal/modal.tsx"
 	},
 	"scripts": {
 		"lint": "biome check --write",
@@ -23,8 +24,10 @@
 		"@types/react": "19.2.2",
 		"@types/react-dom": "19.2.2",
 		"jsdom": "^26.1.0",
-		"typescript": "5.9.2",
-		"vitest": "^3.2.4"
+		"typescript": "5.9.3",
+		"@repo/vitest-config": "workspace:*",
+		"@vitest/coverage-istanbul": "^4.1.2",
+		"vitest": "^4.1.2"
 	},
 	"dependencies": {
 		"@repo/constants": "workspace:*",

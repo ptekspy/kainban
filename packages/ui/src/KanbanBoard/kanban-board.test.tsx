@@ -88,6 +88,9 @@ describe("KanbanBoard", () => {
 		render(<KanbanBoard />);
 
 		fireEvent.click(screen.getByRole("button", { name: "New Project" }));
+		expect(
+			screen.getByRole("dialog", { name: "Create project" }),
+		).toBeInTheDocument();
 		fireEvent.change(screen.getByPlaceholderText("Project Phoenix"), {
 			target: { value: "Client Portal" },
 		});
@@ -109,5 +112,8 @@ describe("KanbanBoard", () => {
 		expect(
 			screen.getByRole("link", { name: "Open GitHub Repository" }),
 		).toHaveAttribute("href", "https://github.com/example/client-portal");
+		expect(
+			screen.queryByRole("dialog", { name: "Create project" }),
+		).not.toBeInTheDocument();
 	});
 });
