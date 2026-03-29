@@ -1,13 +1,28 @@
 import { Hono } from "hono";
+import { auth } from "../auth/auth.js";
 import type { Prisma } from "../generated/prisma/client.js";
 import type { RealtimePublisher } from "../realtime/realtime-server.js";
 import { realtimeServer } from "../server.js";
 import { ProjectSetupError } from "./project-workspace.js";
 import { type createProjectService, type ProjectCreateInput, projectService } from "./service.js";
 
+type AuthenticatedUser = {
+	id: string;
+};
+
+type ResolveAuthenticatedUser = (
+	headers: Headers,
+) => Promise<AuthenticatedUser | null>;
+
+const resolveAuthenticatedUser: ResolveAuthenticatedUser = async (headers) => {
+	const session = await auth.api.getSession({ headers });
+	return session?.user ? { id: session.user.id } : null;
+};
+
 export const createProjectController = (
 	service: ReturnType<typeof createProjectService>,
 	realtimePublisher: RealtimePublisher = realtimeServer,
+	resolveUser: ResolveAuthenticatedUser = resolveAuthenticatedUser,
 ) => {
 	const controller = new Hono();
 
@@ -28,8 +43,17 @@ export const createProjectController = (
 
 	controller.post("/", async (c) => {
 		const body = await c.req.json<ProjectCreateInput>();
+		const user = await resolveUser(c.req.raw.headers);
+
+		if (!user) {
+			return c.json({ message: "Authentication required" }, 401);
+		}
+
 		try {
-			const project = await service.create(body);
+			const project = await service.create({
+				...body,
+				ownerId: user.id,
+			});
 			realtimePublisher.publish({
 				action: "created",
 				entity: "project",
