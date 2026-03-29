@@ -1,3 +1,8 @@
-// this should be and exported object that can be used by useQuery or queryClient.fetchQuery/prefetchQuery
-// it should use the server action from ./action.ts to fetch the data from the hono api
-// its query key should come from ../queryKeys.ts
+import { createQueryDescriptor } from "../../shared/query-factory";
+import { epicQueryKeys } from "../queryKeys";
+import { getAllEpics } from "./action";
+
+export const getAllEpicsQuery = createQueryDescriptor(
+	() => epicQueryKeys.all(),
+	() => getAllEpics(),
+);

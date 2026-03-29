@@ -1,1 +1,6 @@
-// this should be a server action that fetches from the hono api
+"use server";
+
+import { apiRequest } from "../../shared/api-client";
+import type { ApiProject } from "../../shared/types";
+
+export const getAllProjects = () => apiRequest<ApiProject[]>("/projects");

@@ -1,3 +1,9 @@
-// this should be and exported object that can be used by useQuery or queryClient.fetchQuery/prefetchQuery
-// it should use the server action from ./action.ts to fetch the data from the hono api
-// its query key should come from ../queryKeys.ts
+import { createQueryDescriptor } from "../../shared/query-factory";
+import type { UserPostInput } from "../../shared/types";
+import { userQueryKeys } from "../queryKeys";
+import { postUser } from "./action";
+
+export const postUserQuery = createQueryDescriptor(
+	() => userQueryKeys.all(),
+	(input: UserPostInput) => postUser(input),
+);

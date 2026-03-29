@@ -1,1 +1,9 @@
-// this should be a server action that fetches from the hono api
+"use server";
+
+import { apiRequest } from "../../shared/api-client";
+import type { DeleteInput } from "../../shared/types";
+
+export const deleteProject = ({ id }: DeleteInput) =>
+	apiRequest<null>(`/projects/${id}`, {
+		method: "DELETE",
+	});

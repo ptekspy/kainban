@@ -1,3 +1,9 @@
-// this should be and exported object that can be used by useQuery or queryClient.fetchQuery/prefetchQuery
-// it should use the server action from ./action.ts to fetch the data from the hono api
-// its query key should come from ../queryKeys.ts
+import { createQueryDescriptor } from "../../shared/query-factory";
+import type { GetByIdInput } from "../../shared/types";
+import { projectQueryKeys } from "../queryKeys";
+import { getProjectById } from "./action";
+
+export const getProjectByIdQuery = createQueryDescriptor(
+	({ id }: GetByIdInput) => projectQueryKeys.byId(id),
+	getProjectById,
+);

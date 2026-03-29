@@ -1,1 +1,10 @@
-// this should be a server action that fetches from the hono api
+"use server";
+
+import { apiRequest } from "../../shared/api-client";
+import type { ApiProject, ProjectPostInput } from "../../shared/types";
+
+export const postProject = (input: ProjectPostInput) =>
+	apiRequest<ApiProject>("/projects", {
+		method: "POST",
+		body: input,
+	});
