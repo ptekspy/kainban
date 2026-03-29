@@ -9,6 +9,7 @@ interface ClaimedTaskRow {
 	githubRepoUrl: string;
 	ticketNumber: number;
 	title: string;
+	description: string | null;
 }
 
 const claimReadyTaskSql = `
@@ -24,11 +25,12 @@ WITH candidate AS (
 	SET status = 'IN_DEVELOPMENT', "updatedAt" = NOW()
 	FROM candidate
 	WHERE task.id = candidate.id
-	RETURNING task.id, task.title, task."ticketNumber", task."projectId"
+	RETURNING task.id, task.title, task.description, task."ticketNumber", task."projectId"
 )
 SELECT
 	claimed.id,
 	claimed.title,
+	claimed.description,
 	claimed."ticketNumber",
 	claimed."projectId",
 	project.name AS "projectName",
@@ -55,14 +57,28 @@ export const createTaskRepository = (pool: Pool): TaskClaimRepository => ({
 			githubRepoUrl: row.githubRepoUrl,
 			ticketNumber: row.ticketNumber,
 			title: row.title,
+			description: row.description,
 		};
 
 		return claimedTask;
 	},
+	assignTaskWorkspace: async (taskId, assignment) => {
+		await pool.query(
+			`UPDATE "Task"
+			SET "branchName" = $2,
+				"worktreePath" = $3,
+				"updatedAt" = NOW()
+			WHERE id = $1`,
+			[taskId, assignment.branchName, assignment.worktreePath],
+		);
+	},
 	returnTaskToReadyForDevelopment: async (taskId: string) => {
 		await pool.query(
 			`UPDATE "Task"
-			SET status = 'READY_FOR_DEVELOPMENT', "updatedAt" = NOW()
+			SET status = 'READY_FOR_DEVELOPMENT',
+				"branchName" = NULL,
+				"worktreePath" = NULL,
+				"updatedAt" = NOW()
 			WHERE id = $1 AND status = 'IN_DEVELOPMENT'`,
 			[taskId],
 		);
