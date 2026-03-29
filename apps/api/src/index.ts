@@ -10,12 +10,24 @@ import { realtimeServer } from "./server.js";
 import { taskController } from "./tasks/controller.js";
 import { userController } from "./users/controller.js";
 
+const defaultWebOrigin = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:4000";
+const webPort = (() => {
+	try {
+		return new URL(defaultWebOrigin).port || "4000";
+	} catch {
+		return "4000";
+	}
+})();
+const allowedWebOrigins = [defaultWebOrigin, `http://127.0.0.1:${webPort}`];
+const apiPort = Number.parseInt(process.env.API_PORT ?? process.env.PORT ?? "4001", 10);
+const apiBaseUrl = process.env.BETTER_AUTH_URL ?? `http://localhost:${apiPort}`;
+
 const app = new Hono();
 
 app.use(
 	"*",
 	cors({
-		origin: ["http://localhost:4000", "http://127.0.0.1:4000"],
+		origin: allowedWebOrigins,
 		allowMethods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
 		credentials: true,
 	}),
@@ -65,16 +77,12 @@ const createRequestHeaders = (request: IncomingMessage) => {
 server.on("upgrade", async (request: IncomingMessage, socket, head) => {
 	const origin = request.headers.origin;
 
-	if (
-		origin &&
-		origin !== "http://localhost:4000" &&
-		origin !== "http://127.0.0.1:4000"
-	) {
+	if (origin && !allowedWebOrigins.includes(origin)) {
 		socket.destroy();
 		return;
 	}
 
-	const url = new URL(request.url ?? "/", "http://localhost:4001");
+	const url = new URL(request.url ?? "/", apiBaseUrl);
 	if (url.pathname !== "/ws") {
 		socket.destroy();
 		return;
@@ -93,6 +101,6 @@ server.on("upgrade", async (request: IncomingMessage, socket, head) => {
 	realtimeServer.handleUpgrade(request, socket, head, () => {});
 });
 
-server.listen(4001, () => {
-	console.log("Server is running on http://localhost:4001");
+server.listen(apiPort, () => {
+	console.log(`Server is running on http://localhost:${apiPort}`);
 });

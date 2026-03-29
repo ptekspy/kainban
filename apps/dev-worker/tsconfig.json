@@ -1,0 +1,7 @@
+{
+	"extends": "@repo/typescript-config/api.json",
+	"compilerOptions": {
+		"types": ["node"]
+	},
+	"exclude": ["node_modules"]
+}
