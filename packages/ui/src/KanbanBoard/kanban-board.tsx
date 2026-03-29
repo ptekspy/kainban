@@ -10,10 +10,14 @@ import type { KanbanColumnKey, Project } from "@repo/types/Kanban/types";
 import { useState } from "react";
 import { Button } from "../Button/button";
 import { DependencyAutocomplete } from "../DependencyAutocomplete/dependency-autocomplete";
+import { DependencyTimeline } from "../DependencyTimeline/dependency-timeline";
 import { EpicList } from "../EpicList/epic-list";
 import { KanbanColumn } from "../KanbanColumn/kanban-column";
 import { KanbanTaskCard } from "../KanbanTaskCard/kanban-task-card";
 import { Modal } from "../Modal/modal";
+import { TaskDetailsModal } from "../TaskDetailsModal/task-details-modal";
+
+type BoardView = "KANBAN" | "TIMELINE";
 
 interface KanbanBoardProps {
 	id?: string;
@@ -44,6 +48,16 @@ interface KanbanBoardProps {
 		changes: Array<{ column: KanbanColumnKey; taskId: string }>,
 		project: Project,
 	) => Promise<void>;
+	onUpdateTask?: (
+		input: {
+			dependencyTaskIds: string[];
+			description?: string;
+			epicId: string;
+			taskId: string;
+			title: string;
+		},
+		project: Project,
+	) => Promise<void>;
 }
 
 export const KanbanBoard = ({
@@ -56,10 +70,12 @@ export const KanbanBoard = ({
 	onCreateProject,
 	onCreateTask,
 	onMoveTasks,
+	onUpdateTask,
 }: KanbanBoardProps) => {
 	const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false);
 	const [isCreateEpicOpen, setIsCreateEpicOpen] = useState(false);
 	const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false);
+	const [boardView, setBoardView] = useState<BoardView>("KANBAN");
 	const [projectForm, setProjectForm] = useState({
 		name: "",
 		abbreviation: "",
@@ -80,17 +96,22 @@ export const KanbanBoard = ({
 	const [epicFormError, setEpicFormError] = useState<string | null>(null);
 	const [projectFormError, setProjectFormError] = useState<string | null>(null);
 	const [taskFormError, setTaskFormError] = useState<string | null>(null);
+	const [taskDetailsError, setTaskDetailsError] = useState<string | null>(null);
 	const [projectNeedsGithubPat, setProjectNeedsGithubPat] = useState(false);
+	const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
 	const {
 		activeDropColumn,
 		activeProject,
 		getDependencyOptions,
 		getEpicById,
 		getCountForColumn,
+		getDependentTasks,
+		getTaskById,
 		getTasksForColumn,
 		handleCreateEpic,
 		handleCreateProject,
 		handleCreateTask,
+		handleUpdateTask,
 		handleDragEnd,
 		handleDragLeave,
 		handleDragOver,
@@ -101,6 +122,7 @@ export const KanbanBoard = ({
 		validateCreateEpicInput,
 		validateCreateProjectInput,
 		validateCreateTaskInput,
+		validateUpdateTaskInput,
 	} = useKanbanBoard(initialProjects);
 
 	const projectValidation = validateCreateProjectInput(projectForm);
@@ -253,6 +275,92 @@ export const KanbanBoard = ({
 				.length,
 		})) ?? [];
 	const dependencyOptions = getDependencyOptions(dependencySearch);
+	const selectedTask = selectedTaskId ? getTaskById(selectedTaskId) : null;
+	const selectedTaskDependencies =
+		selectedTask?.dependencyTaskIds
+			.map((dependencyTaskId) => getTaskById(dependencyTaskId))
+			.filter((task): task is NonNullable<typeof task> => task !== null) ?? [];
+	const selectedTaskDependents = selectedTask
+		? getDependentTasks(selectedTask.id)
+		: [];
+	const selectedTaskDependencyOptions = (activeProject?.tasks ?? [])
+		.filter((task) => task.id !== selectedTask?.id)
+		.map((task) => ({
+			id: task.id,
+			label: task.title,
+			description: getEpicById(task.epicId)?.name,
+		}));
+
+	const handleOpenTaskDetails = (taskId: string) => {
+		setTaskDetailsError(null);
+		setSelectedTaskId(taskId);
+	};
+
+	const handleCloseTaskDetails = () => {
+		setTaskDetailsError(null);
+		setSelectedTaskId(null);
+	};
+
+	const handleSaveTaskDetails = async (input: {
+		dependencyTaskIds: string[];
+		description?: string;
+		epicId: string;
+		taskId: string;
+		title: string;
+	}) => {
+		const validation = validateUpdateTaskInput(input);
+
+		if (!validation.success) {
+			setTaskDetailsError(validation.reason);
+			return;
+		}
+
+		try {
+			setTaskDetailsError(null);
+
+			if (onUpdateTask && activeProject) {
+				await onUpdateTask(
+					{
+						...input,
+						title: validation.trimmedTitle,
+						description: validation.trimmedDescription,
+						dependencyTaskIds: validation.normalizedDependencyTaskIds,
+					},
+					activeProject,
+				);
+			} else {
+				const outcome = handleUpdateTask(input);
+
+				if (!outcome.success) {
+					setTaskDetailsError(outcome.reason);
+					return;
+				}
+			}
+
+			handleCloseTaskDetails();
+		} catch (error) {
+			setTaskDetailsError(
+				error instanceof Error ? error.message : "Unable to update task.",
+			);
+		}
+	};
+
+	const handleCreateDependentTask = () => {
+		if (!selectedTask) {
+			return;
+		}
+
+		setTaskFormError(null);
+		setTaskForm({
+			title: "",
+			description: "",
+			epicId: selectedTask.epicId,
+			dependencyTaskIds: [selectedTask.id],
+		});
+		setDependencySearch("");
+		handleCloseTaskDetails();
+		setIsCreateTaskOpen(true);
+	};
 
 	return (
 		<section
@@ -326,7 +434,39 @@ export const KanbanBoard = ({
 								ticket IDs, and repository context stay together.
 							</p>
 						</div>
-						<div className="flex flex-wrap gap-3">
+						<div className="flex flex-wrap items-center gap-3">
+							<div
+								className="inline-flex rounded-2xl border border-slate-200 bg-slate-100 p-1"
+								role="tablist"
+								aria-label="Board views"
+							>
+								<button
+									type="button"
+									role="tab"
+									aria-selected={boardView === "KANBAN"}
+									onClick={() => setBoardView("KANBAN")}
+									className={`rounded-2xl px-4 py-2 text-sm font-semibold transition ${
+										boardView === "KANBAN"
+											? "bg-white text-slate-950 shadow-sm"
+											: "text-slate-600 hover:text-slate-950"
+									}`}
+								>
+									Kanban
+								</button>
+								<button
+									type="button"
+									role="tab"
+									aria-selected={boardView === "TIMELINE"}
+									onClick={() => setBoardView("TIMELINE")}
+									className={`rounded-2xl px-4 py-2 text-sm font-semibold transition ${
+										boardView === "TIMELINE"
+											? "bg-white text-slate-950 shadow-sm"
+											: "text-slate-600 hover:text-slate-950"
+									}`}
+								>
+									Timeline
+								</button>
+							</div>
 							{activeProject ? (
 								<>
 									<Button
@@ -361,54 +501,70 @@ export const KanbanBoard = ({
 							) : null}
 						</div>
 					</div>
-					<div className="mt-6">
-						<div className="mb-3 flex items-center justify-between gap-3">
-							<div>
-								<h3 className="text-lg font-semibold text-slate-950">Epics</h3>
-								<p className="text-sm text-slate-600">
-									Tasks belong to an epic and can depend on earlier work.
-								</p>
+					{boardView === "KANBAN" ? (
+						<>
+							<div className="mt-6">
+								<div className="mb-3 flex items-center justify-between gap-3">
+									<div>
+										<h3 className="text-lg font-semibold text-slate-950">Epics</h3>
+										<p className="text-sm text-slate-600">
+											Tasks belong to an epic and can depend on earlier work.
+										</p>
+									</div>
+									{activeProject ? (
+										<span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">
+											{activeProject.epics.length} epics
+										</span>
+									) : null}
+								</div>
+								<EpicList epics={epicCards} />
 							</div>
-							{activeProject ? (
-								<span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">
-									{activeProject.epics.length} epics
-								</span>
-							) : null}
-						</div>
-						<EpicList epics={epicCards} />
-					</div>
-					<div className="mt-6 flex gap-4 overflow-x-auto pb-2">
-						{KANBAN_COLUMN_KEYS.map((columnKey) => (
-							<KanbanColumn
-								key={columnKey}
-								backgroundColor={
-									KANBAN_COLUMN_SETTINGS[columnKey].backgroundColor
-								}
-								isActiveDropColumn={activeDropColumn === columnKey}
-								onDragLeave={() => handleDragLeave(columnKey)}
-								onDragOver={(event) => handleDragOver(event, columnKey)}
-								onDrop={(event) => handleDrop(event, columnKey, onMoveTasks)}
-								taskCount={getCountForColumn(columnKey)}
-								title={KANBAN_COLUMN_TITLES[columnKey]}
-							>
-								{getTasksForColumn(columnKey).map((task) => (
-									<KanbanTaskCard
-										key={task.id}
-										dependencyTaskIds={task.dependencyTaskIds}
-										epicName={getEpicById(task.epicId)?.name ?? "Unknown Epic"}
-										task={task}
-										onDragStart={(event) => handleDragStart(event, task.id)}
-										onDragEnd={handleDragEnd}
-									/>
+							<div className="mt-6 flex gap-4 overflow-x-auto pb-2">
+								{KANBAN_COLUMN_KEYS.map((columnKey) => (
+									<KanbanColumn
+										key={columnKey}
+										backgroundColor={
+											KANBAN_COLUMN_SETTINGS[columnKey].backgroundColor
+										}
+										isActiveDropColumn={activeDropColumn === columnKey}
+										onDragLeave={() => handleDragLeave(columnKey)}
+										onDragOver={(event) => handleDragOver(event, columnKey)}
+										onDrop={(event) =>
+											handleDrop(event, columnKey, onMoveTasks)
+										}
+										taskCount={getCountForColumn(columnKey)}
+										title={KANBAN_COLUMN_TITLES[columnKey]}
+									>
+										{getTasksForColumn(columnKey).map((task) => (
+											<KanbanTaskCard
+												key={task.id}
+												dependencyTaskIds={task.dependencyTaskIds}
+												epicName={getEpicById(task.epicId)?.name ?? "Unknown Epic"}
+												onOpenDetails={() => handleOpenTaskDetails(task.id)}
+												task={task}
+												onDragStart={(event) =>
+													handleDragStart(event, task.id)
+												}
+												onDragEnd={handleDragEnd}
+											/>
+										))}
+										{getTasksForColumn(columnKey).length === 0 ? (
+											<li className="rounded-2xl border border-dashed border-slate-300 bg-white/60 p-4 text-sm text-slate-500">
+												No tasks in this lane yet.
+											</li>
+										) : null}
+									</KanbanColumn>
 								))}
-								{getTasksForColumn(columnKey).length === 0 ? (
-									<li className="rounded-2xl border border-dashed border-slate-300 bg-white/60 p-4 text-sm text-slate-500">
-										No tasks in this lane yet.
-									</li>
-								) : null}
-							</KanbanColumn>
-						))}
-					</div>
+							</div>
+						</>
+					) : (
+						<div className="mt-6">
+							<DependencyTimeline
+								project={activeProject}
+								onOpenTaskDetails={handleOpenTaskDetails}
+							/>
+						</div>
+					)}
 				</div>
 			</div>
 			<Modal
@@ -677,6 +833,19 @@ export const KanbanBoard = ({
 					</Button>
 				</div>
 			</Modal>
+			<TaskDetailsModal
+				isOpen={selectedTask !== null}
+				task={selectedTask}
+				error={taskDetailsError}
+				epics={activeProject?.epics ?? []}
+				dependencyOptions={selectedTaskDependencyOptions}
+				dependencyTasks={selectedTaskDependencies}
+				dependentTasks={selectedTaskDependents}
+				onClose={handleCloseTaskDetails}
+				onOpenTask={handleOpenTaskDetails}
+				onCreateDependent={handleCreateDependentTask}
+				onSave={handleSaveTaskDetails}
+			/>
 		</section>
 	);
 };

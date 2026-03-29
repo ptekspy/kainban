@@ -28,6 +28,12 @@ export interface TaskUpdateData {
 	dependencyIds?: string[];
 }
 
+export interface TaskDependencyGraphNode {
+	dependencyIds: string[];
+	id: string;
+	projectId: string;
+}
+
 export interface TaskQueueRecord {
 	id: string;
 	ticketNumber: number;
@@ -103,7 +109,6 @@ const mapQueueTask = (
 	},
 	dependencyIds: task.dependencies.map((dependency) => dependency.id),
 });
-
 export const createTaskRepository = (db: PrismaClient) => ({
 	getAll: () => db.task.findMany({ include: taskInclude }),
 	getQueueOverview: async (): Promise<TaskQueueOverview> => {
@@ -150,6 +155,25 @@ export const createTaskRepository = (db: PrismaClient) => ({
 		};
 	},
 	getById: (id: string) => db.task.findUnique({ where: { id }, include: taskInclude }),
+	getDependencyGraphByProject: (projectId: string) =>
+		db.task.findMany({
+			where: { projectId },
+			select: {
+				id: true,
+				projectId: true,
+				dependencies: {
+					select: {
+						id: true,
+					},
+				},
+			},
+		}).then((tasks) =>
+			tasks.map((task) => ({
+				id: task.id,
+				projectId: task.projectId,
+				dependencyIds: task.dependencies.map((dependency) => dependency.id),
+			} satisfies TaskDependencyGraphNode)),
+		),
 	getNextTicketNumber: async (projectId: string) => {
 		const latestTask = await db.task.findFirst({
 			where: { projectId },

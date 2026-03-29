@@ -73,6 +73,55 @@ export const useKanbanBoard = (initialProjects: Project[] = MOCK_PROJECTS) => {
 		return activeProject?.tasks.find((task) => task.id === taskId) ?? null;
 	};
 
+	const getDependentTasks = (taskId: string) => {
+		return (
+			activeProject?.tasks.filter((task) =>
+				task.dependencyTaskIds.includes(taskId),
+			) ?? []
+		);
+	};
+
+	const createsDependencyCycle = (
+		taskId: string,
+		dependencyTaskIds: string[],
+		project: Project,
+	) => {
+		const taskMap = new Map(project.tasks.map((task) => [task.id, task]));
+		const dependencySet = new Set(dependencyTaskIds);
+
+		const hasPathToTask = (
+			startTaskId: string,
+			targetTaskId: string,
+			visited = new Set<string>(),
+		): boolean => {
+			if (startTaskId === targetTaskId) {
+				return true;
+			}
+
+			if (visited.has(startTaskId)) {
+				return false;
+			}
+
+			visited.add(startTaskId);
+			const task = taskMap.get(startTaskId);
+
+			if (!task) {
+				return false;
+			}
+
+			const nextDependencyIds =
+				startTaskId === taskId ? [...dependencySet] : task.dependencyTaskIds;
+
+			return nextDependencyIds.some((dependencyTaskId) =>
+				hasPathToTask(dependencyTaskId, targetTaskId, visited),
+			);
+		};
+
+		return dependencyTaskIds.some((dependencyTaskId) =>
+			hasPathToTask(dependencyTaskId, taskId),
+		);
+	};
+
 	const areDependenciesInColumn = (
 		task: Task,
 		column: KanbanColumnKey,
@@ -431,6 +480,86 @@ export const useKanbanBoard = (initialProjects: Project[] = MOCK_PROJECTS) => {
 		};
 	};
 
+	const validateUpdateTaskInput = (input: {
+		dependencyTaskIds: string[];
+		description?: string;
+		epicId: string;
+		taskId: string;
+		title: string;
+	}) => {
+		if (!activeProject) {
+			return { success: false as const, reason: "No active project selected." };
+		}
+
+		const currentTask = getTaskById(input.taskId);
+
+		if (!currentTask) {
+			return { success: false as const, reason: "Task could not be found." };
+		}
+
+		const parsed = taskSchema.safeParse({
+			title: input.title,
+			description: input.description,
+			epicId: input.epicId,
+			dependencyTaskIds: input.dependencyTaskIds,
+		});
+
+		if (!parsed.success) {
+			return {
+				success: false as const,
+				reason: parsed.error.issues[0]?.message ?? "Task input is invalid.",
+			};
+		}
+
+		const normalizedDependencyTaskIds = parsed.data.dependencyTaskIds.filter(
+			(dependencyTaskId) => dependencyTaskId !== input.taskId,
+		);
+		const allDependencyTasksExist = normalizedDependencyTaskIds.every(
+			(dependencyTaskId) =>
+				activeProject.tasks.some((task) => task.id === dependencyTaskId),
+		);
+		const isExistingRootTask = currentTask.dependencyTaskIds.length === 0;
+
+		if (!allDependencyTasksExist) {
+			return {
+				success: false as const,
+				reason: "Selected dependencies must exist on the current project.",
+			};
+		}
+
+		if (
+			activeProject.tasks.length > 1 &&
+			normalizedDependencyTaskIds.length === 0 &&
+			!isExistingRootTask
+		) {
+			return {
+				success: false as const,
+				reason: "Only the original starting task can remain dependency-free.",
+			};
+		}
+
+		if (
+			normalizedDependencyTaskIds.includes(input.taskId) ||
+			createsDependencyCycle(
+				input.taskId,
+				normalizedDependencyTaskIds,
+				activeProject,
+			)
+		) {
+			return {
+				success: false as const,
+				reason: "That dependency change would create a circular task chain.",
+			};
+		}
+
+		return {
+			success: true as const,
+			normalizedDependencyTaskIds,
+			trimmedDescription: parsed.data.description || undefined,
+			trimmedTitle: parsed.data.title,
+		};
+	};
+
 	const handleCreateTask = (input: {
 		dependencyTaskIds: string[];
 		description?: string;
@@ -468,12 +597,44 @@ export const useKanbanBoard = (initialProjects: Project[] = MOCK_PROJECTS) => {
 		return { success: true as const, task: newTask };
 	};
 
+	const handleUpdateTask = (input: {
+		dependencyTaskIds: string[];
+		description?: string;
+		epicId: string;
+		taskId: string;
+		title: string;
+	}) => {
+		const validation = validateUpdateTaskInput(input);
+
+		if (!validation.success) {
+			return validation;
+		}
+
+		updateActiveProject((project) => ({
+			...project,
+			tasks: project.tasks.map((task) =>
+				task.id === input.taskId
+					? {
+							...task,
+							title: validation.trimmedTitle,
+							description: validation.trimmedDescription,
+							epicId: input.epicId,
+							dependencyTaskIds: validation.normalizedDependencyTaskIds,
+						}
+					: task,
+			),
+		}));
+
+		return { success: true as const };
+	};
+
 	return {
 		activeDropColumn,
 		activeProject,
 		getDependencyOptions,
 		getEpicById,
 		getTaskById,
+		getDependentTasks,
 		projects: state.projects,
 		getCountForColumn,
 		getMoveTaskResult,
@@ -481,6 +642,7 @@ export const useKanbanBoard = (initialProjects: Project[] = MOCK_PROJECTS) => {
 		handleCreateProject,
 		handleCreateEpic,
 		handleCreateTask,
+		handleUpdateTask,
 		handleDragEnd,
 		handleDragLeave,
 		handleDragOver,
@@ -491,5 +653,6 @@ export const useKanbanBoard = (initialProjects: Project[] = MOCK_PROJECTS) => {
 		validateCreateEpicInput,
 		validateCreateProjectInput,
 		validateCreateTaskInput,
+		validateUpdateTaskInput,
 	};
 };

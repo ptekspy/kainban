@@ -288,6 +288,49 @@ describe("useKanbanBoard", () => {
 		).toEqual(["KAN-3"]);
 	});
 
+	it("updates task metadata locally", () => {
+		const { result } = renderHook(() => useKanbanBoard());
+
+		act(() => {
+			result.current.handleUpdateTask({
+				taskId: "KAN-2",
+				title: "Design database schema v2",
+				description: "Updated description",
+				epicId: "kan-platform",
+				dependencyTaskIds: ["KAN-1"],
+			});
+		});
+
+		expect(result.current.getTaskById("KAN-2")).toMatchObject({
+			title: "Design database schema v2",
+			description: "Updated description",
+			epicId: "kan-platform",
+		});
+	});
+
+	it("blocks task updates that would create a circular dependency", () => {
+		const { result } = renderHook(() => useKanbanBoard());
+
+		let outcome:
+			| ReturnType<typeof result.current.handleUpdateTask>
+			| undefined = undefined;
+
+		act(() => {
+			outcome = result.current.handleUpdateTask({
+				taskId: "KAN-1",
+				title: "Implement authentication",
+				description: "Set up user authentication using JWT.",
+				epicId: "kan-auth",
+				dependencyTaskIds: ["KAN-3"],
+			});
+		});
+
+		expect(outcome).toMatchObject({
+			success: false,
+			reason: "That dependency change would create a circular task chain.",
+		});
+	});
+
 	it("blocks moving a task to ready for development until all dependencies are in release", () => {
 		const projects = createReleaseRuleProject([
 			{

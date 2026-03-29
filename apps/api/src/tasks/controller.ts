@@ -2,7 +2,12 @@ import { Hono } from "hono";
 import type { RealtimePublisher } from "../realtime/realtime-server.js";
 import { realtimeServer } from "../server.js";
 import type { TaskUpdateData } from "./repository.js";
-import { type createTaskService, type TaskCreateInput, taskService } from "./service.js";
+import {
+	type createTaskService,
+	type TaskCreateInput,
+	TaskDependencyValidationError,
+	taskService,
+} from "./service.js";
 
 export const createTaskController = (
 	service: ReturnType<typeof createTaskService>,
@@ -32,20 +37,50 @@ export const createTaskController = (
 
 	controller.post("/", async (c) => {
 		const body = await c.req.json<TaskCreateInput>();
-		const task = await service.create(body);
-		realtimePublisher.publish({
-			action: "created",
-			entity: "task",
-			entityId: task.id,
-			projectId: task.projectId,
-			type: "task.created",
-		});
-		return c.json(task, 201);
+		try {
+			const task = await service.create(body);
+			realtimePublisher.publish({
+				action: "created",
+				entity: "task",
+				entityId: task.id,
+				projectId: task.projectId,
+				type: "task.created",
+			});
+			return c.json(task, 201);
+		} catch (error) {
+			if (error instanceof TaskDependencyValidationError) {
+				return c.json(
+					{
+						message: error.message,
+						code: error.code,
+					},
+					error.status as 400 | 403 | 404 | 409,
+				);
+			}
+
+			throw error;
+		}
 	});
 
 	controller.patch("/:id", async (c) => {
 		const body = await c.req.json<TaskUpdateData>();
-		const task = await service.update(c.req.param("id"), body);
+		let task;
+
+		try {
+			task = await service.update(c.req.param("id"), body);
+		} catch (error) {
+			if (error instanceof TaskDependencyValidationError) {
+				return c.json(
+					{
+						message: error.message,
+						code: error.code,
+					},
+					error.status as 400 | 403 | 404 | 409,
+				);
+			}
+
+			throw error;
+		}
 
 		if (!task) {
 			return c.json({ message: "Task not found" }, 404);

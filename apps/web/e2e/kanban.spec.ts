@@ -391,4 +391,53 @@ test.describe("kanban browser flow", () => {
 
 		await expect(page.getByRole("button", { name: /Playwright Private/i })).toBeVisible();
 	});
+
+	test("edits a task from details and creates a dependent task", async ({
+		page,
+	}) => {
+		await signIn(page);
+
+		await expect(
+			page.getByRole("heading", { name: "Bot Market" }),
+		).toBeVisible();
+
+		await taskCard(page, "Set up Nextjs")
+			.getByRole("button", { name: "Details" })
+			.click();
+
+		const detailsDialog = page.getByRole("dialog", {
+			name: /Task details: BTM-1/i,
+		});
+		await expect(detailsDialog).toBeVisible();
+		await detailsDialog
+			.getByRole("textbox", { name: "Task title" })
+			.fill("Set up Nextjs App");
+		await detailsDialog.getByRole("button", { name: "Save task" }).click();
+
+		await expect(detailsDialog).not.toBeVisible();
+		await expect(page.getByText("Set up Nextjs App")).toBeVisible();
+
+		await taskCard(page, "Set up Nextjs App")
+			.getByRole("button", { name: "Details" })
+			.click();
+		await detailsDialog.getByRole("button", { name: "Create dependent" }).click();
+
+		const createTaskDialog = page.getByRole("dialog", { name: "Create task" });
+		await expect(createTaskDialog).toBeVisible();
+		await expect(
+			createTaskDialog.getByRole("button", { name: /BTM-1 x/i }),
+		).toBeVisible();
+
+		await createTaskDialog
+			.getByPlaceholder("Implement billing webhook")
+			.fill("Ship initial deployment");
+		await createTaskDialog.getByRole("button", { name: "Create task" }).click();
+
+		await expect(createTaskDialog).not.toBeVisible();
+		await expect(page.getByText("BTM-3")).toBeVisible();
+		await expect(page.getByText("Ship initial deployment")).toBeVisible();
+		await expect(
+			taskCard(page, "Ship initial deployment").getByText("Depends on BTM-1"),
+		).toBeVisible();
+	});
 });

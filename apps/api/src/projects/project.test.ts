@@ -91,7 +91,11 @@ describe("project module", () => {
 		const app = new Hono();
 		app.route(
 			"/projects",
-			createProjectController(service as unknown as Parameters<typeof createProjectController>[0]),
+			createProjectController(
+				service as unknown as Parameters<typeof createProjectController>[0],
+				undefined,
+				vi.fn().mockResolvedValue({ id: "session-user-1" }),
+			),
 		);
 
 		expect((await app.request("/projects")).status).toBe(200);
@@ -111,6 +115,12 @@ describe("project module", () => {
 				})
 			).status,
 		).toBe(201);
+		expect(service.create).toHaveBeenCalledWith({
+			name: "Kainban",
+			abbreviation: "KAN",
+			githubRepoUrl: "https://github.com/example/kainban",
+			ownerId: "session-user-1",
+		});
 		expect(
 			(
 				await app.request("/projects/project-1", {
@@ -134,7 +144,11 @@ describe("project module", () => {
 		const app = new Hono();
 		app.route(
 			"/projects",
-			createProjectController(service as unknown as Parameters<typeof createProjectController>[0]),
+			createProjectController(
+				service as unknown as Parameters<typeof createProjectController>[0],
+				undefined,
+				vi.fn().mockResolvedValue({ id: "session-user-1" }),
+			),
 		);
 
 		const response = await app.request("/projects", {
@@ -153,5 +167,41 @@ describe("project module", () => {
 			message: "This repository needs a GitHub PAT before it can be cloned.",
 			code: "GITHUB_AUTH_REQUIRED",
 		});
+	});
+
+	it("returns 401 when project creation has no authenticated user", async () => {
+		const service = {
+			getAll: vi.fn(),
+			getById: vi.fn(),
+			create: vi.fn(),
+			update: vi.fn(),
+			delete: vi.fn(),
+		};
+		const app = new Hono();
+		app.route(
+			"/projects",
+			createProjectController(
+				service as unknown as Parameters<typeof createProjectController>[0],
+				undefined,
+				vi.fn().mockResolvedValue(null),
+			),
+		);
+
+		const response = await app.request("/projects", {
+			method: "POST",
+			body: JSON.stringify({
+				name: "Kainban",
+				abbreviation: "KAN",
+				githubRepoUrl: "https://github.com/example/kainban",
+				ownerId: "user-1",
+			}),
+			headers: { "Content-Type": "application/json" },
+		});
+
+		expect(response.status).toBe(401);
+		await expect(response.json()).resolves.toEqual({
+			message: "Authentication required",
+		});
+		expect(service.create).not.toHaveBeenCalled();
 	});
 });

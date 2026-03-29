@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { TaskStatus } from "../generated/prisma/client.js";
 import { createTaskController } from "./controller.js";
 import { createTaskRepository } from "./repository.js";
-import { createTaskService } from "./service.js";
+import { createTaskService, TaskDependencyValidationError } from "./service.js";
 
 describe("task module", () => {
 	it("repository forwards CRUD operations to Prisma", async () => {
@@ -22,6 +22,7 @@ describe("task module", () => {
 		await repository.getAll();
 		await repository.getQueueOverview();
 		await repository.getById("task-1");
+		await repository.getDependencyGraphByProject("project-1");
 		expect(await repository.getNextTicketNumber("project-1")).toBe(4);
 		await repository.create({
 			title: "Implement auth",
@@ -36,7 +37,7 @@ describe("task module", () => {
 		});
 		await repository.delete("task-1");
 
-		expect(db.task.findMany).toHaveBeenCalledTimes(2);
+		expect(db.task.findMany).toHaveBeenCalledTimes(3);
 		expect(db.task.findUnique).toHaveBeenCalled();
 		expect(db.task.findFirst).toHaveBeenCalledTimes(1);
 		expect(db.task.create).toHaveBeenCalledTimes(1);
@@ -54,6 +55,13 @@ describe("task module", () => {
 				summary: { activeCount: 0, blockedCount: 0, queuedCount: 0 },
 			}),
 			getById: vi.fn().mockResolvedValue({ id: "task-1" }),
+			getDependencyGraphByProject: vi.fn().mockResolvedValue([
+				{
+					id: "task-0",
+					projectId: "project-1",
+					dependencyIds: [],
+				},
+			]),
 			getNextTicketNumber: vi.fn().mockResolvedValue(4),
 			create: vi.fn().mockResolvedValue({ id: "task-1", ticketNumber: 4 }),
 			update: vi.fn().mockResolvedValue({ id: "task-1" }),
@@ -78,6 +86,44 @@ describe("task module", () => {
 			dependencyIds: ["task-0"],
 			ticketNumber: 4,
 		});
+	});
+
+	it("prevents circular dependency updates", async () => {
+		const repository = {
+			getAll: vi.fn(),
+			getById: vi.fn().mockResolvedValue({
+				id: "task-1",
+				projectId: "project-1",
+			}),
+			getDependencyGraphByProject: vi.fn().mockResolvedValue([
+				{
+					id: "task-1",
+					projectId: "project-1",
+					dependencyIds: [],
+				},
+				{
+					id: "task-2",
+					projectId: "project-1",
+					dependencyIds: ["task-1"],
+				},
+			]),
+			getNextTicketNumber: vi.fn(),
+			create: vi.fn(),
+			update: vi.fn(),
+			delete: vi.fn(),
+		};
+		const service = createTaskService(
+			repository as unknown as Parameters<typeof createTaskService>[0],
+		);
+
+		await expect(
+			service.update("task-1", {
+				dependencyIds: ["task-2"],
+			}),
+		).rejects.toMatchObject({
+			code: "TASK_DEPENDENCY_CYCLE",
+		});
+		expect(repository.update).not.toHaveBeenCalled();
 	});
 
 	it("controller exposes CRUD routes", async () => {
@@ -125,5 +171,41 @@ describe("task module", () => {
 			).status,
 		).toBe(200);
 		expect((await app.request("/tasks/task-1", { method: "DELETE" })).status).toBe(204);
+	});
+
+	it("returns a structured dependency validation error", async () => {
+		const service = {
+			getAll: vi.fn(),
+			getById: vi.fn(),
+			create: vi.fn(),
+			update: vi.fn().mockRejectedValue(
+				new TaskDependencyValidationError(
+					"That dependency change would create a circular task chain.",
+					"TASK_DEPENDENCY_CYCLE",
+				),
+			),
+			delete: vi.fn(),
+		};
+		const app = new Hono();
+		app.route(
+			"/tasks",
+			createTaskController(
+				service as unknown as Parameters<typeof createTaskController>[0],
+			),
+		);
+
+		const response = await app.request("/tasks/task-1", {
+			method: "PATCH",
+			body: JSON.stringify({
+				dependencyIds: ["task-2"],
+			}),
+			headers: { "Content-Type": "application/json" },
+		});
+
+		expect(response.status).toBe(409);
+		await expect(response.json()).resolves.toEqual({
+			message: "That dependency change would create a circular task chain.",
+			code: "TASK_DEPENDENCY_CYCLE",
+		});
 	});
 });

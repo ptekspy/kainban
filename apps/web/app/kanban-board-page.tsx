@@ -45,6 +45,36 @@ const applyTaskColumnChanges = (
 			: project,
 	);
 
+const applyTaskUpdate = (
+	projects: Project[] | undefined,
+	projectId: string,
+	input: {
+		dependencyTaskIds: string[];
+		description?: string;
+		epicId: string;
+		taskId: string;
+		title: string;
+	},
+) =>
+	(projects ?? []).map((project) =>
+		project.id === projectId
+			? {
+					...project,
+					tasks: project.tasks.map((task) =>
+						task.id === input.taskId
+							? {
+									...task,
+									title: input.title,
+									description: input.description,
+									epicId: input.epicId,
+									dependencyTaskIds: input.dependencyTaskIds,
+								}
+							: task,
+					),
+				}
+			: project,
+	);
+
 export const KanbanBoardPage = () => {
 	const queryClient = useQueryClient();
 	const session = authClient.useSession();
@@ -211,6 +241,54 @@ export const KanbanBoardPage = () => {
 		}
 	};
 
+	const handleUpdateTask = async (
+		input: {
+			dependencyTaskIds: string[];
+			description?: string;
+			epicId: string;
+			taskId: string;
+			title: string;
+		},
+		project: Project,
+	) => {
+		const previousProjects =
+			queryClient.getQueryData<Project[]>(projectQueryKeys.all()) ?? [];
+		const currentTask = project.tasks.find((task) => task.id === input.taskId);
+
+		if (!currentTask?.sourceId) {
+			throw new Error(`Missing source task id for ${input.taskId}.`);
+		}
+
+		queryClient.setQueryData<Project[]>(
+			projectQueryKeys.all(),
+			(currentProjects) => applyTaskUpdate(currentProjects, project.id, input),
+		);
+
+		try {
+			await moveTaskMutation.mutateAsync({
+				id: currentTask.sourceId,
+				title: input.title,
+				description: input.description?.trim() || null,
+				epicId: input.epicId,
+				dependencyIds: input.dependencyTaskIds
+					.map(
+						(dependencyTaskId) =>
+							project.tasks.find((task) => task.id === dependencyTaskId)?.sourceId,
+					)
+					.filter(
+						(dependencyId): dependencyId is string =>
+							dependencyId !== undefined,
+					),
+			});
+		} catch (error) {
+			queryClient.setQueryData<Project[]>(
+				projectQueryKeys.all(),
+				previousProjects,
+			);
+			throw error;
+		}
+	};
+
 	const handleSignOut = async () => {
 		await authClient.signOut();
 		queryClient.removeQueries({
@@ -283,6 +361,7 @@ export const KanbanBoardPage = () => {
 				onMoveTasks={handleMoveTasks}
 				onCreateProject={handleCreateProject}
 				onCreateTask={handleCreateTask}
+				onUpdateTask={handleUpdateTask}
 			/>
 		</div>
 	);
