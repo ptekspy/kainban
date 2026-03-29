@@ -31,25 +31,28 @@ const loadDotEnvFile = (filePath: string) => {
 
 loadDotEnvFile(resolve(process.cwd(), "../../.env.local"));
 
+const webBaseUrl = process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:4000";
+const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4001";
+
 export default defineConfig({
 	testDir: "./e2e",
 	fullyParallel: false,
 	workers: 1,
 	globalSetup: "./e2e/global-setup.ts",
 	use: {
-		baseURL: "http://localhost:4000",
+		baseURL: webBaseUrl,
 		trace: "on-first-retry",
 	},
 	webServer: [
 		{
 			command: "pnpm --filter api dev",
-			url: "http://localhost:4001",
+			url: apiBaseUrl,
 			reuseExistingServer: true,
 			timeout: 120_000,
 		},
 		{
 			command: "pnpm --filter web dev",
-			url: "http://localhost:4000",
+			url: webBaseUrl,
 			reuseExistingServer: true,
 			timeout: 120_000,
 		},
