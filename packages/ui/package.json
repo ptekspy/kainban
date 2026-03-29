@@ -5,11 +5,14 @@
 	"exports": {
 		"./Button": "./src/Button/button.tsx",
 		"./DependencyAutocomplete": "./src/DependencyAutocomplete/dependency-autocomplete.tsx",
+		"./DependencyTimeline": "./src/DependencyTimeline/dependency-timeline.tsx",
 		"./EpicList": "./src/EpicList/epic-list.tsx",
 		"./KanbanBoard": "./src/KanbanBoard/kanban-board.tsx",
 		"./KanbanColumn": "./src/KanbanColumn/kanban-column.tsx",
 		"./KanbanTaskCard": "./src/KanbanTaskCard/kanban-task-card.tsx",
 		"./Modal": "./src/Modal/modal.tsx"
+		,
+		"./TaskDetailsModal": "./src/TaskDetailsModal/task-details-modal.tsx"
 	},
 	"scripts": {
 		"lint": "biome check --write",

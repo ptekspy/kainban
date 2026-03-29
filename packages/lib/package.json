@@ -3,6 +3,7 @@
 	"version": "0.0.0",
 	"private": true,
 	"exports": {
+		"./Kanban/get-project-timeline": "./src/Kanban/get-project-timeline.ts",
 		"./Kanban/use-kanban-board": "./src/Kanban/use-kanban-board.ts",
 		"./schemas/epic": "./src/schemas/epic.ts",
 		"./schemas/project": "./src/schemas/project.ts",

@@ -47,6 +47,23 @@ describe("KanbanBoard", () => {
 		expect(screen.getByLabelText("In Development tasks")).toBeInTheDocument();
 	});
 
+	it("switches to the dependency timeline view", () => {
+		render(<KanbanBoard />);
+
+		fireEvent.click(screen.getByRole("tab", { name: "Timeline" }));
+
+		expect(
+			screen.getByRole("heading", { name: "Task flow by dependency depth" }),
+		).toBeInTheDocument();
+		expect(
+			screen.getByLabelText("Starting tasks timeline column"),
+		).toBeInTheDocument();
+		expect(
+			screen.queryByLabelText("Ready for Development tasks"),
+		).not.toBeInTheDocument();
+		expect(screen.queryByText("Epics")).not.toBeInTheDocument();
+	});
+
 	it("moves a task between valid columns using drag and drop", () => {
 		render(<KanbanBoard />);
 
@@ -108,6 +125,52 @@ describe("KanbanBoard", () => {
 				}),
 			);
 		});
+	});
+
+	it("opens task details from kanban cards and saves edits through the callback", async () => {
+		const onUpdateTask = vi.fn().mockResolvedValue(undefined);
+
+		render(<KanbanBoard onUpdateTask={onUpdateTask} />);
+
+		fireEvent.click(screen.getAllByRole("button", { name: "Details" })[0]!);
+
+		expect(
+			screen.getByRole("dialog", { name: /Task details: KAN-1/i }),
+		).toBeInTheDocument();
+
+		fireEvent.change(screen.getByDisplayValue("Implement authentication"), {
+			target: { value: "Implement auth v2" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "Save task" }));
+
+		await waitFor(() => {
+			expect(onUpdateTask).toHaveBeenCalledWith(
+				{
+					taskId: "KAN-1",
+					title: "Implement auth v2",
+					description: "Set up user authentication using JWT.",
+					epicId: "kan-auth",
+					dependencyTaskIds: [],
+				},
+				expect.objectContaining({
+					id: "project-kainban",
+				}),
+			);
+		});
+	});
+
+	it("can create a dependent task from the task details modal", () => {
+		render(<KanbanBoard />);
+
+		fireEvent.click(screen.getAllByRole("button", { name: "Details" })[0]!);
+		fireEvent.click(screen.getByRole("button", { name: "Create dependent" }));
+
+		expect(
+			screen.getByRole("dialog", { name: "Create task" }),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: /KAN-1 x/i }),
+		).toBeInTheDocument();
 	});
 
 	it("switches boards when a different project is selected", () => {

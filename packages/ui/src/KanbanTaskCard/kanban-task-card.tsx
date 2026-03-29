@@ -6,6 +6,7 @@ import type { DragEventHandler } from "react";
 interface KanbanTaskCardProps {
 	dependencyTaskIds: string[];
 	epicName: string;
+	onOpenDetails?: () => void;
 	task: Task;
 	onDragEnd: DragEventHandler<HTMLLIElement>;
 	onDragStart: DragEventHandler<HTMLLIElement>;
@@ -14,6 +15,7 @@ interface KanbanTaskCardProps {
 export const KanbanTaskCard = ({
 	dependencyTaskIds,
 	epicName,
+	onOpenDetails,
 	task,
 	onDragEnd,
 	onDragStart,
@@ -32,6 +34,20 @@ export const KanbanTaskCard = ({
 			<p className="mb-2 inline-flex rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
 				{epicName}
 			</p>
+			{onOpenDetails ? (
+				<div className="mb-2">
+					<button
+						type="button"
+						onClick={(event) => {
+							event.stopPropagation();
+							onOpenDetails();
+						}}
+						className="rounded-full border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-950"
+					>
+						Details
+					</button>
+				</div>
+			) : null}
 			<h3 className="text-md font-semibold">{task.title}</h3>
 			{task.description && (
 				<p className="text-sm text-gray-600">{task.description}</p>
