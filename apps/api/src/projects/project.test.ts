@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { describe, expect, it, vi } from "vitest";
 import { createProjectController } from "./controller.js";
+import { GitHubAuthRequiredError } from "./project-workspace.js";
 import { createProjectRepository } from "./repository.js";
 import { createProjectService } from "./service.js";
 
@@ -43,7 +44,16 @@ describe("project module", () => {
 			update: vi.fn().mockResolvedValue({ id: "project-1" }),
 			delete: vi.fn().mockResolvedValue({ id: "project-1" }),
 		};
-		const service = createProjectService(repository as unknown as Parameters<typeof createProjectService>[0]);
+		const workspaceService = {
+			cloneProjectWorkspace: vi.fn().mockResolvedValue({
+				cleanup: vi.fn(),
+				directoryPath: "/tmp/kainban-workspaces/kainban/kainban",
+			}),
+		};
+		const service = createProjectService(
+			repository as unknown as Parameters<typeof createProjectService>[0],
+			workspaceService,
+		);
 
 		await service.getAll();
 		await service.getById("project-1");
@@ -58,6 +68,11 @@ describe("project module", () => {
 
 		expect(repository.getAll).toHaveBeenCalledTimes(1);
 		expect(repository.getById).toHaveBeenCalledWith("project-1");
+		expect(workspaceService.cloneProjectWorkspace).toHaveBeenCalledWith({
+			projectName: "Kainban",
+			githubRepoUrl: "https://github.com/example/kainban",
+			githubPat: undefined,
+		});
 		expect(repository.create).toHaveBeenCalledTimes(1);
 		expect(repository.update).toHaveBeenCalledWith("project-1", {
 			name: "Updated",
@@ -106,5 +121,37 @@ describe("project module", () => {
 			).status,
 		).toBe(200);
 		expect((await app.request("/projects/project-1", { method: "DELETE" })).status).toBe(204);
+	});
+
+	it("returns a structured auth-required response when github access needs a pat", async () => {
+		const service = {
+			getAll: vi.fn(),
+			getById: vi.fn(),
+			create: vi.fn().mockRejectedValue(new GitHubAuthRequiredError()),
+			update: vi.fn(),
+			delete: vi.fn(),
+		};
+		const app = new Hono();
+		app.route(
+			"/projects",
+			createProjectController(service as unknown as Parameters<typeof createProjectController>[0]),
+		);
+
+		const response = await app.request("/projects", {
+			method: "POST",
+			body: JSON.stringify({
+				name: "Private Portal",
+				abbreviation: "PRV",
+				githubRepoUrl: "https://github.com/example/private-portal",
+				ownerId: "user-1",
+			}),
+			headers: { "Content-Type": "application/json" },
+		});
+
+		expect(response.status).toBe(409);
+		await expect(response.json()).resolves.toEqual({
+			message: "This repository needs a GitHub PAT before it can be cloned.",
+			code: "GITHUB_AUTH_REQUIRED",
+		});
 	});
 });

@@ -249,6 +249,58 @@ describe("KanbanBoard", () => {
 				name: "Client Portal",
 				abbreviation: "CP",
 				githubRepoUrl: "https://github.com/example/client-portal",
+				githubPat: undefined,
+			});
+		});
+	});
+
+	it("asks for a github pat when project creation requires auth", async () => {
+		const onCreateProject = vi
+			.fn()
+			.mockRejectedValueOnce(
+				Object.assign(
+					new Error(
+						"This repository needs a GitHub PAT before it can be cloned.",
+					),
+					{
+						code: "GITHUB_AUTH_REQUIRED",
+					},
+				),
+			)
+			.mockResolvedValueOnce({ id: "project-client-portal" });
+
+		render(<KanbanBoard onCreateProject={onCreateProject} />);
+
+		fireEvent.click(screen.getByRole("button", { name: "New Project" }));
+		fireEvent.change(screen.getByPlaceholderText("Project Phoenix"), {
+			target: { value: "Client Portal" },
+		});
+		fireEvent.change(screen.getByPlaceholderText("PHX"), {
+			target: { value: "cp" },
+		});
+		fireEvent.change(
+			screen.getByPlaceholderText("https://github.com/org/repo"),
+			{
+				target: { value: "https://github.com/example/client-portal" },
+			},
+		);
+		fireEvent.click(screen.getByRole("button", { name: "Create" }));
+
+		await waitFor(() => {
+			expect(screen.getByPlaceholderText("github_pat_xxxxx")).toBeInTheDocument();
+		});
+
+		fireEvent.change(screen.getByPlaceholderText("github_pat_xxxxx"), {
+			target: { value: "github_pat_123" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "Create" }));
+
+		await waitFor(() => {
+			expect(onCreateProject).toHaveBeenLastCalledWith({
+				name: "Client Portal",
+				abbreviation: "CP",
+				githubRepoUrl: "https://github.com/example/client-portal",
+				githubPat: "github_pat_123",
 			});
 		});
 	});

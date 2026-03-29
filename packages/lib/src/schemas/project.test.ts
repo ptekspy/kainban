@@ -24,5 +24,13 @@ describe("projectSchema", () => {
 				githubRepoUrl: "not-a-url",
 			}),
 		).toThrow();
+
+		expect(() =>
+			projectSchema.parse({
+				name: "Client Portal",
+				abbreviation: "CP",
+				githubRepoUrl: "https://gitlab.com/example/client-portal",
+			}),
+		).toThrow("GitHub repo URL must point to github.com.");
 	});
 });

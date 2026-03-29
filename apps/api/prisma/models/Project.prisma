@@ -2,7 +2,7 @@ model Project {
     id            String   @id @default(cuid())
     name          String
     abbreviation  String   @unique
-    githubRepoUrl String   @unique
+    githubRepoUrl String
     ownerId       String
     owner         User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
     epics         Epic[]

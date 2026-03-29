@@ -8,11 +8,22 @@ interface ApiRequestOptions {
 }
 
 export class ApiError extends Error {
+	code?: string;
+	details?: unknown;
 	status: number;
 
-	constructor(message: string, status: number) {
+	constructor(
+		message: string,
+		status: number,
+		input?: {
+			code?: string;
+			details?: unknown;
+		},
+	) {
 		super(message);
 		this.name = "ApiError";
+		this.code = input?.code;
+		this.details = input?.details;
 		this.status = status;
 	}
 }
@@ -37,17 +48,27 @@ export const apiRequest = async <TResponse>(
 
 	if (!response.ok) {
 		let message = `Request failed with status ${response.status}`;
+		let apiError: ApiError | null = null;
 
 		try {
-			const errorBody = (await response.json()) as { message?: string };
+			const errorBody = (await response.json()) as {
+				code?: string;
+				details?: unknown;
+				message?: string;
+			};
 			if (errorBody.message) {
 				message = errorBody.message;
 			}
+
+			apiError = new ApiError(message, response.status, {
+				code: errorBody.code,
+				details: errorBody.details,
+			});
 		} catch {
 			// Ignore JSON parsing errors for empty responses.
 		}
 
-		throw new ApiError(message, response.status);
+		throw apiError ?? new ApiError(message, response.status);
 	}
 
 	if (response.status === 204) {

@@ -41,12 +41,17 @@ describe("apiRequest", () => {
 			vi.fn().mockResolvedValue({
 				ok: false,
 				status: 404,
-				json: async () => ({ message: "Project not found" }),
+				json: async () => ({
+					message: "Project not found",
+					code: "PROJECT_NOT_FOUND",
+				}),
 			}),
 		);
 
 		await expect(apiRequest("/projects/missing")).rejects.toEqual(
-			new ApiError("Project not found", 404),
+			new ApiError("Project not found", 404, {
+				code: "PROJECT_NOT_FOUND",
+			}),
 		);
 	});
 });
