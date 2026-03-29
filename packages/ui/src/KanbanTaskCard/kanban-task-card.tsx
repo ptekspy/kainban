@@ -22,6 +22,9 @@ export const KanbanTaskCard = ({
 			onDragEnd={onDragEnd}
 			className="mb-2 cursor-grab rounded bg-white p-2 shadow active:cursor-grabbing"
 		>
+			<p className="mb-1 text-xs font-semibold tracking-wide text-slate-500">
+				{task.id}
+			</p>
 			<h3 className="text-md font-semibold">{task.title}</h3>
 			{task.description && (
 				<p className="text-sm text-gray-600">{task.description}</p>

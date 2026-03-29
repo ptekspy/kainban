@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
 import type { Task } from "@repo/types/Kanban/types";
+import { describe, expect, it } from "vitest";
 import { updateTaskColumn } from "./update-task-column";
 
 const tasks: Task[] = [

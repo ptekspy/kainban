@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 
+import type { KanbanColumnKey } from "@repo/types/Kanban/types";
 import { act, renderHook } from "@testing-library/react";
 import type { DragEvent } from "react";
 import { describe, expect, it, vi } from "vitest";
-import type { KanbanColumnKey } from "@repo/types/Kanban/types";
 import { useKanbanBoard } from "./use-kanban-board";
 
 const createDataTransfer = () => {
@@ -38,7 +38,7 @@ describe("useKanbanBoard", () => {
 		const dataTransfer = createDataTransfer();
 
 		act(() => {
-			result.current.handleDragStart(createItemEvent(dataTransfer), "1");
+			result.current.handleDragStart(createItemEvent(dataTransfer), "KAN-1");
 		});
 
 		act(() => {
@@ -60,7 +60,7 @@ describe("useKanbanBoard", () => {
 		expect(
 			result.current
 				.getTasksForColumn("IN_DEVELOPMENT")
-				.some((task) => task.id === "1"),
+				.some((task) => task.id === "KAN-1"),
 		).toBe(true);
 		expect(result.current.activeDropColumn).toBeNull();
 	});
@@ -69,13 +69,13 @@ describe("useKanbanBoard", () => {
 		const { result } = renderHook(() => useKanbanBoard());
 
 		act(() => {
-			result.current.handleMoveTask("1", "RELEASED");
+			result.current.handleMoveTask("KAN-1", "RELEASED");
 		});
 
 		expect(
 			result.current
 				.getTasksForColumn("READY_FOR_DEVELOPMENT")
-				.some((task) => task.id === "1"),
+				.some((task) => task.id === "KAN-1"),
 		).toBe(true);
 	});
 
@@ -85,12 +85,44 @@ describe("useKanbanBoard", () => {
 		const column = "IN_DEVELOPMENT" satisfies KanbanColumnKey;
 
 		act(() => {
-			result.current.handleDragStart(createItemEvent(dataTransfer), "1");
+			result.current.handleDragStart(createItemEvent(dataTransfer), "KAN-1");
 			result.current.handleDragOver(createListEvent(dataTransfer), column);
 			result.current.handleDragLeave(column);
 			result.current.handleDragEnd();
 		});
 
 		expect(result.current.activeDropColumn).toBeNull();
+	});
+
+	it("switches between project boards", () => {
+		const { result } = renderHook(() => useKanbanBoard());
+
+		act(() => {
+			result.current.handleSelectProject("project-docs");
+		});
+
+		expect(result.current.activeProject?.abbreviation).toBe("DOC");
+		expect(result.current.getCountForColumn("TODO")).toBe(1);
+		expect(result.current.getCountForColumn("READY_FOR_DEVELOPMENT")).toBe(0);
+	});
+
+	it("creates a project and focuses its empty board", () => {
+		const { result } = renderHook(() => useKanbanBoard());
+
+		act(() => {
+			result.current.handleCreateProject({
+				name: "Client Portal",
+				abbreviation: "cp",
+				githubRepoUrl: "https://github.com/example/client-portal",
+			});
+		});
+
+		expect(result.current.activeProject).toMatchObject({
+			name: "Client Portal",
+			abbreviation: "CP",
+			githubRepoUrl: "https://github.com/example/client-portal",
+		});
+		expect(result.current.projects).toHaveLength(3);
+		expect(result.current.getCountForColumn("TODO")).toBe(0);
 	});
 });

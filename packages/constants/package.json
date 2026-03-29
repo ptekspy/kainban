@@ -4,10 +4,11 @@
 	"private": true,
 	"exports": {
 		"./Kanban/board": "./src/Kanban/board.ts",
+		"./Kanban/mock-projects": "./src/Kanban/mock-projects.ts",
 		"./Kanban/mock-tasks": "./src/Kanban/mock-tasks.ts"
 	},
 	"scripts": {
-		"lint": "eslint . --max-warnings 0",
+		"lint": "biome check --write",
 		"check-types": "tsc --noEmit",
 		"test": "vitest run"
 	},
@@ -15,10 +16,9 @@
 		"@repo/types": "workspace:*"
 	},
 	"devDependencies": {
-		"@repo/eslint-config": "workspace:*",
+		"@repo/biome-config": "workspace:^",
 		"@repo/typescript-config": "workspace:*",
 		"@types/node": "^22.15.3",
-		"eslint": "^9.39.1",
 		"typescript": "5.9.2",
 		"vitest": "^3.2.4"
 	}

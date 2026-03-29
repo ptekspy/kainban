@@ -26,6 +26,15 @@ export interface Task {
 	column: KanbanColumnKey;
 }
 
-export interface KanbanBoardState {
+export interface Project {
+	id: string;
+	name: string;
+	abbreviation: string;
+	githubRepoUrl: string;
 	tasks: Task[];
+}
+
+export interface KanbanBoardState {
+	activeProjectId: string | null;
+	projects: Project[];
 }

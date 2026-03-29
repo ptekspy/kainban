@@ -6,7 +6,7 @@
 		"./Kanban/update-task-column": "./src/Kanban/update-task-column.ts"
 	},
 	"scripts": {
-		"lint": "eslint . --max-warnings 0",
+		"lint": "biome check --write",
 		"check-types": "tsc --noEmit",
 		"test": "vitest run"
 	},
@@ -14,10 +14,9 @@
 		"@repo/types": "workspace:*"
 	},
 	"devDependencies": {
-		"@repo/eslint-config": "workspace:*",
+		"@repo/biome-config": "workspace:^",
 		"@repo/typescript-config": "workspace:*",
 		"@types/node": "^22.15.3",
-		"eslint": "^9.39.1",
 		"typescript": "5.9.2",
 		"vitest": "^3.2.4"
 	}

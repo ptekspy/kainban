@@ -27,10 +27,16 @@ const createDataTransfer = () => {
 };
 
 describe("KanbanBoard", () => {
-	it("renders the board heading and starter columns", () => {
+	it("renders the project sidebar and the active board", () => {
 		render(<KanbanBoard />);
 
-		expect(screen.getByText("Kanban Board")).toBeInTheDocument();
+		expect(screen.getByText("Workspace Boards")).toBeInTheDocument();
+		expect(
+			screen.getByRole("heading", { name: "Kainban Platform" }),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("link", { name: "Open GitHub Repository" }),
+		).toHaveAttribute("href", "https://github.com/example/kainban");
 		expect(
 			screen.getByLabelText("Ready for Development tasks"),
 		).toBeInTheDocument();
@@ -62,5 +68,46 @@ describe("KanbanBoard", () => {
 		expect(
 			within(inDevelopment).getByText("Implement authentication"),
 		).toBeInTheDocument();
+	});
+
+	it("switches boards when a different project is selected", () => {
+		render(<KanbanBoard />);
+
+		fireEvent.click(screen.getByRole("button", { name: /Developer Docs/i }));
+
+		expect(
+			screen.getByRole("heading", { name: "Developer Docs" }),
+		).toBeInTheDocument();
+		expect(screen.getByText("DOC-1")).toBeInTheDocument();
+		expect(
+			screen.queryByText("Implement authentication"),
+		).not.toBeInTheDocument();
+	});
+
+	it("creates a project from the sidebar form", () => {
+		render(<KanbanBoard />);
+
+		fireEvent.click(screen.getByRole("button", { name: "New Project" }));
+		fireEvent.change(screen.getByPlaceholderText("Project Phoenix"), {
+			target: { value: "Client Portal" },
+		});
+		fireEvent.change(screen.getByPlaceholderText("PHX"), {
+			target: { value: "cp" },
+		});
+		fireEvent.change(
+			screen.getByPlaceholderText("https://github.com/org/repo"),
+			{
+				target: { value: "https://github.com/example/client-portal" },
+			},
+		);
+		fireEvent.click(screen.getByRole("button", { name: "Create" }));
+
+		expect(
+			screen.getByRole("heading", { name: "Client Portal" }),
+		).toBeInTheDocument();
+		expect(screen.getAllByText("CP")).toHaveLength(2);
+		expect(
+			screen.getByRole("link", { name: "Open GitHub Repository" }),
+		).toHaveAttribute("href", "https://github.com/example/client-portal");
 	});
 });
