@@ -10,6 +10,7 @@ const claimedTask: ClaimedTask = {
 	githubRepoUrl: "https://github.com/ptekspy/kainban",
 	ticketNumber: 27,
 	title: "Implement worker checkout flow",
+	description: "Create a task-specific git worktree for the claimed development item.",
 };
 
 describe("createTaskBranchName", () => {

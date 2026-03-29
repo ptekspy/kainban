@@ -6,10 +6,18 @@ export interface ClaimedTask {
 	githubRepoUrl: string;
 	ticketNumber: number;
 	title: string;
+	description: string | null;
 }
 
 export interface TaskClaimRepository {
 	claimNextReadyTask: () => Promise<ClaimedTask | null>;
+	assignTaskWorkspace: (
+		taskId: string,
+		assignment: {
+			branchName: string;
+			worktreePath: string;
+		},
+	) => Promise<void>;
 	returnTaskToReadyForDevelopment: (taskId: string) => Promise<void>;
 }
 

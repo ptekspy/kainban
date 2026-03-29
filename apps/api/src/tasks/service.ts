@@ -1,5 +1,9 @@
 import type { TaskStatus } from "../generated/prisma/client.js";
-import { type createTaskRepository, type TaskUpdateData, taskRepository } from "./repository.js";
+import {
+	type createTaskRepository,
+	type TaskUpdateData,
+	taskRepository,
+} from "./repository.js";
 
 export interface TaskCreateInput {
 	title: string;
@@ -12,6 +16,7 @@ export interface TaskCreateInput {
 
 export const createTaskService = (repository: ReturnType<typeof createTaskRepository>) => ({
 	getAll: () => repository.getAll(),
+	getQueueOverview: () => repository.getQueueOverview(),
 	getById: (id: string) => repository.getById(id),
 	create: async (data: TaskCreateInput) => {
 		const ticketNumber = await repository.getNextTicketNumber(data.projectId);

@@ -10,6 +10,7 @@ import { postTaskMutation } from "@repo/fe-api/Task/post/query";
 import type { KanbanColumnKey, Project } from "@repo/types/Kanban/types";
 import { KanbanBoard } from "@repo/ui/KanbanBoard";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import Link from "next/link";
 import { authClient } from "./auth/auth-client";
 import { SignInForm } from "./auth/sign-in-form";
 import { useProjectRealtime } from "./use-project-realtime";
@@ -258,6 +259,12 @@ export const KanbanBoardPage = () => {
 	return (
 		<div>
 			<div className="absolute right-6 top-6 z-20 flex items-center gap-3 rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-sm text-slate-700 shadow-sm backdrop-blur">
+				<Link
+					href="/queue"
+					className="rounded-full border border-slate-300 px-3 py-1 font-medium transition hover:border-slate-400 hover:text-slate-950"
+				>
+					Queue view
+				</Link>
 				<span>{session.data.user.email}</span>
 				<button
 					type="button"

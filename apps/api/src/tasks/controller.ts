@@ -10,6 +10,11 @@ export const createTaskController = (
 ) => {
 	const controller = new Hono();
 
+	controller.get("/queue", async (c) => {
+		const queue = await service.getQueueOverview();
+		return c.json(queue);
+	});
+
 	controller.get("/", async (c) => {
 		const tasks = await service.getAll();
 		return c.json(tasks);

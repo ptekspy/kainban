@@ -48,10 +48,42 @@ export interface ApiTask {
 	title: string;
 	description: string | null;
 	status: ApiTaskStatus;
+	branchName: string | null;
+	worktreePath: string | null;
 	projectId: string;
 	epicId: string;
 	createdAt: string;
 	updatedAt: string;
+}
+
+export interface ApiTaskQueueItem {
+	id: string;
+	ticketNumber: number;
+	title: string;
+	description: string | null;
+	status: ApiTaskStatus;
+	branchName: string | null;
+	worktreePath: string | null;
+	project: {
+		id: string;
+		name: string;
+		abbreviation: string;
+	};
+	metric: {
+		epicName: string;
+	};
+	dependencyIds: string[];
+}
+
+export interface ApiTaskQueueOverview {
+	activeTasks: ApiTaskQueueItem[];
+	queuedTasks: ApiTaskQueueItem[];
+	blockedTasks: ApiTaskQueueItem[];
+	summary: {
+		activeCount: number;
+		blockedCount: number;
+		queuedCount: number;
+	};
 }
 
 export interface ApiTaskReference {
