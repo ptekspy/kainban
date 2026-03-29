@@ -1,9 +1,9 @@
-"use server";
-
-const API_BASE_URL = process.env["HONO_API_URL"] ?? "http://localhost:4001";
+const API_BASE_URL =
+	process.env["NEXT_PUBLIC_API_BASE_URL"] ?? "http://localhost:4001";
 
 interface ApiRequestOptions {
 	body?: unknown;
+	headers?: HeadersInit;
 	method?: "DELETE" | "GET" | "PATCH" | "POST";
 }
 
@@ -25,12 +25,14 @@ export const apiRequest = async <TResponse>(
 		method: options.method ?? "GET",
 		headers:
 			options.body === undefined
-				? undefined
+				? options.headers
 				: {
 						"Content-Type": "application/json",
+						...options.headers,
 					},
 		body: options.body === undefined ? undefined : JSON.stringify(options.body),
 		cache: "no-store",
+		credentials: "include",
 	});
 
 	if (!response.ok) {

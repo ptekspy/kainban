@@ -4,7 +4,9 @@
 	"private": true,
 	"exports": {
 		"./shared/api-client": "./src/shared/api-client.ts",
+		"./shared/query-factory": "./src/shared/query-factory.ts",
 		"./shared/types": "./src/shared/types.ts",
+		"./Projects/map-project": "./src/Projects/map-project.ts",
 		"./User/queryKeys": "./src/User/queryKeys.ts",
 		"./User/getAll/action": "./src/User/getAll/action.ts",
 		"./User/getAll/query": "./src/User/getAll/query.ts",
@@ -56,7 +58,8 @@
 		"test": "vitest run"
 	},
 	"dependencies": {
-		"@repo/types": "workspace:*"
+		"@repo/types": "workspace:*",
+		"@tanstack/react-query": "^5.90.5"
 	},
 	"devDependencies": {
 		"@repo/biome-config": "workspace:^",

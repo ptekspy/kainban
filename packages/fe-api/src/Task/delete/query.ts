@@ -1,9 +1,8 @@
-import { createQueryDescriptor } from "../../shared/query-factory";
+import { createMutationOptions } from "../../shared/query-factory";
 import type { DeleteInput } from "../../shared/types";
-import { taskQueryKeys } from "../queryKeys";
 import { deleteTask } from "./action";
 
-export const deleteTaskQuery = createQueryDescriptor(
-	({ id }: DeleteInput) => taskQueryKeys.byId(id),
-	deleteTask,
-);
+export const deleteTaskMutation = createMutationOptions<
+	DeleteInput,
+	Awaited<ReturnType<typeof deleteTask>>
+>(["tasks", "delete"], deleteTask);

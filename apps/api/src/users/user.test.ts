@@ -19,7 +19,7 @@ describe("user module", () => {
 
 		await repository.getAll();
 		await repository.getById("user-1");
-		await repository.create({ email: "user@example.com" });
+		await repository.create({ email: "user@example.com", name: "User" });
 		await repository.update("user-1", { name: "Updated" });
 		await repository.delete("user-1");
 
@@ -42,7 +42,7 @@ describe("user module", () => {
 
 		await service.getAll();
 		await service.getById("user-1");
-		await service.create({ email: "user@example.com" });
+		await service.create({ email: "user@example.com", name: "User" });
 		await service.update("user-1", { name: "Updated" });
 		await service.delete("user-1");
 
@@ -71,7 +71,7 @@ describe("user module", () => {
 			(
 				await app.request("/users", {
 					method: "POST",
-					body: JSON.stringify({ email: "user@example.com" }),
+					body: JSON.stringify({ email: "user@example.com", name: "User" }),
 					headers: { "Content-Type": "application/json" },
 				})
 			).status,

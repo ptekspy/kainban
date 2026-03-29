@@ -6,6 +6,7 @@ import {
 	KANBAN_COLUMN_TITLES,
 } from "@repo/constants/Kanban/board";
 import { useKanbanBoard } from "@repo/lib/Kanban/use-kanban-board";
+import type { KanbanColumnKey, Project } from "@repo/types/Kanban/types";
 import { useState } from "react";
 import { Button } from "../Button/button";
 import { DependencyAutocomplete } from "../DependencyAutocomplete/dependency-autocomplete";
@@ -16,9 +17,45 @@ import { Modal } from "../Modal/modal";
 
 interface KanbanBoardProps {
 	id?: string;
+	initialProjects?: Project[];
+	isCreatingEpic?: boolean;
+	isCreatingProject?: boolean;
+	isCreatingTask?: boolean;
+	onCreateEpic?: (
+		input: { description?: string; name: string },
+		project: Project,
+	) => Promise<void>;
+	onCreateProject?: (input: {
+		name: string;
+		abbreviation: string;
+		githubRepoUrl: string;
+	}) => Promise<{ id: string }>;
+	onCreateTask?: (
+		input: {
+			dependencyTaskIds: string[];
+			description?: string;
+			epicId: string;
+			title: string;
+		},
+		project: Project,
+	) => Promise<void>;
+	onMoveTasks?: (
+		changes: Array<{ column: KanbanColumnKey; taskId: string }>,
+		project: Project,
+	) => Promise<void>;
 }
 
-export const KanbanBoard = ({ id = "kanban-board" }: KanbanBoardProps) => {
+export const KanbanBoard = ({
+	id = "kanban-board",
+	initialProjects,
+	isCreatingEpic = false,
+	isCreatingProject = false,
+	isCreatingTask = false,
+	onCreateEpic,
+	onCreateProject,
+	onCreateTask,
+	onMoveTasks,
+}: KanbanBoardProps) => {
 	const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false);
 	const [isCreateEpicOpen, setIsCreateEpicOpen] = useState(false);
 	const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false);
@@ -38,6 +75,8 @@ export const KanbanBoard = ({ id = "kanban-board" }: KanbanBoardProps) => {
 		dependencyTaskIds: [] as string[],
 	});
 	const [dependencySearch, setDependencySearch] = useState("");
+	const [epicFormError, setEpicFormError] = useState<string | null>(null);
+	const [projectFormError, setProjectFormError] = useState<string | null>(null);
 	const [taskFormError, setTaskFormError] = useState<string | null>(null);
 	const {
 		activeDropColumn,
@@ -56,25 +95,42 @@ export const KanbanBoard = ({ id = "kanban-board" }: KanbanBoardProps) => {
 		handleDrop,
 		handleSelectProject,
 		projects,
-	} = useKanbanBoard();
+		validateCreateEpicInput,
+		validateCreateProjectInput,
+		validateCreateTaskInput,
+	} = useKanbanBoard(initialProjects);
 
-	const isCreateDisabled =
-		projectForm.name.trim().length === 0 ||
-		projectForm.abbreviation.trim().length === 0 ||
-		projectForm.githubRepoUrl.trim().length === 0;
-	const isCreateEpicDisabled = epicForm.name.trim().length === 0;
+	const projectValidation = validateCreateProjectInput(projectForm);
+	const epicValidation = validateCreateEpicInput(epicForm);
+	const taskValidation = validateCreateTaskInput(taskForm);
+	const isCreateDisabled = !projectValidation.success;
+	const isCreateEpicDisabled = !epicValidation.success;
 	const taskRequiresDependency = (activeProject?.tasks.length ?? 0) > 0;
-	const isCreateTaskDisabled =
-		taskForm.title.trim().length === 0 ||
-		taskForm.epicId.length === 0 ||
-		(taskRequiresDependency && taskForm.dependencyTaskIds.length === 0);
+	const isCreateTaskDisabled = !taskValidation.success;
 
-	const handleSubmitProject = () => {
+	const handleSubmitProject = async () => {
 		if (isCreateDisabled) {
 			return;
 		}
 
-		handleCreateProject(projectForm);
+		try {
+			setProjectFormError(null);
+
+			if (onCreateProject) {
+				const createdProject = await onCreateProject(projectForm);
+				handleSelectProject(createdProject.id);
+			} else {
+				handleCreateProject(projectForm);
+			}
+		} catch (error) {
+			setProjectFormError(
+				error instanceof Error
+					? error.message
+					: "Unable to create project right now.",
+			);
+			return;
+		}
+
 		setProjectForm({
 			name: "",
 			abbreviation: "",
@@ -83,12 +139,26 @@ export const KanbanBoard = ({ id = "kanban-board" }: KanbanBoardProps) => {
 		setIsCreateProjectOpen(false);
 	};
 
-	const handleSubmitEpic = () => {
-		if (isCreateEpicDisabled) {
+	const handleSubmitEpic = async () => {
+		if (isCreateEpicDisabled || !activeProject) {
 			return;
 		}
 
-		handleCreateEpic(epicForm);
+		try {
+			setEpicFormError(null);
+
+			if (onCreateEpic) {
+				await onCreateEpic(epicForm, activeProject);
+			} else {
+				handleCreateEpic(epicForm);
+			}
+		} catch (error) {
+			setEpicFormError(
+				error instanceof Error ? error.message : "Unable to create epic.",
+			);
+			return;
+		}
+
 		setEpicForm({
 			name: "",
 			description: "",
@@ -96,11 +166,37 @@ export const KanbanBoard = ({ id = "kanban-board" }: KanbanBoardProps) => {
 		setIsCreateEpicOpen(false);
 	};
 
-	const handleSubmitTask = () => {
-		const outcome = handleCreateTask(taskForm);
+	const handleSubmitTask = async () => {
+		const validation = validateCreateTaskInput(taskForm);
 
-		if (!outcome.success) {
-			setTaskFormError(outcome.reason);
+		if (!taskValidation.success) {
+			setTaskFormError(taskValidation.reason);
+			return;
+		}
+
+		try {
+			if (onCreateTask && activeProject) {
+				setTaskFormError(null);
+				await onCreateTask(
+					{
+						...taskForm,
+						title: taskValidation.trimmedTitle,
+						dependencyTaskIds: taskValidation.normalizedDependencyTaskIds,
+					},
+					activeProject,
+				);
+			} else {
+				const outcome = handleCreateTask(taskForm);
+
+				if (!outcome.success) {
+					setTaskFormError(outcome.reason);
+					return;
+				}
+			}
+		} catch (error) {
+			setTaskFormError(
+				error instanceof Error ? error.message : "Unable to create task.",
+			);
 			return;
 		}
 
@@ -121,7 +217,7 @@ export const KanbanBoard = ({ id = "kanban-board" }: KanbanBoardProps) => {
 			taskCount: activeProject.tasks.filter((task) => task.epicId === epic.id)
 				.length,
 		})) ?? [];
-	const dependencyOptions = getDependencyOptions("");
+	const dependencyOptions = getDependencyOptions(dependencySearch);
 
 	return (
 		<section
@@ -252,7 +348,7 @@ export const KanbanBoard = ({ id = "kanban-board" }: KanbanBoardProps) => {
 								isActiveDropColumn={activeDropColumn === columnKey}
 								onDragLeave={() => handleDragLeave(columnKey)}
 								onDragOver={(event) => handleDragOver(event, columnKey)}
-								onDrop={(event) => handleDrop(event, columnKey)}
+								onDrop={(event) => handleDrop(event, columnKey, onMoveTasks)}
 								taskCount={getCountForColumn(columnKey)}
 								title={KANBAN_COLUMN_TITLES[columnKey]}
 							>
@@ -331,9 +427,9 @@ export const KanbanBoard = ({ id = "kanban-board" }: KanbanBoardProps) => {
 					<Button
 						type="button"
 						onClick={handleSubmitProject}
-						disabled={isCreateDisabled}
+						disabled={isCreateDisabled || isCreatingProject}
 					>
-						Create
+						{isCreatingProject ? "Creating..." : "Create"}
 					</Button>
 					<Button
 						type="button"
@@ -343,6 +439,11 @@ export const KanbanBoard = ({ id = "kanban-board" }: KanbanBoardProps) => {
 						Cancel
 					</Button>
 				</div>
+				{projectFormError ? (
+					<p className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-3 text-sm text-rose-700">
+						{projectFormError}
+					</p>
+				) : null}
 			</Modal>
 			<Modal
 				isOpen={isCreateEpicOpen}
@@ -384,9 +485,9 @@ export const KanbanBoard = ({ id = "kanban-board" }: KanbanBoardProps) => {
 					<Button
 						type="button"
 						onClick={handleSubmitEpic}
-						disabled={isCreateEpicDisabled}
+						disabled={isCreateEpicDisabled || isCreatingEpic}
 					>
-						Create epic
+						{isCreatingEpic ? "Creating epic..." : "Create epic"}
 					</Button>
 					<Button
 						type="button"
@@ -396,6 +497,11 @@ export const KanbanBoard = ({ id = "kanban-board" }: KanbanBoardProps) => {
 						Cancel
 					</Button>
 				</div>
+				{epicFormError ? (
+					<p className="mt-4 rounded-2xl border border-rose-200 bg-rose-50 px-3 py-3 text-sm text-rose-700">
+						{epicFormError}
+					</p>
+				) : null}
 			</Modal>
 			<Modal
 				isOpen={isCreateTaskOpen}
@@ -495,10 +601,12 @@ export const KanbanBoard = ({ id = "kanban-board" }: KanbanBoardProps) => {
 						type="button"
 						onClick={handleSubmitTask}
 						disabled={
-							isCreateTaskDisabled || (activeProject?.epics.length ?? 0) === 0
+							isCreateTaskDisabled ||
+							(activeProject?.epics.length ?? 0) === 0 ||
+							isCreatingTask
 						}
 					>
-						Create task
+						{isCreatingTask ? "Creating task..." : "Create task"}
 					</Button>
 					<Button
 						type="button"

@@ -1,46 +1,36 @@
-import { existsSync } from "node:fs";
-import { resolve } from "node:path";
-import { PrismaPg } from "@prisma/adapter-pg";
-import { config } from "dotenv";
-import { PrismaClient, TaskStatus } from "../src/generated/prisma/client.js";
+import { auth } from "../src/auth/auth.js";
+import { prisma } from "../src/db/client.js";
+import { TaskStatus } from "../src/generated/prisma/client.js";
+const adminEmail = process.env.ADMIN_EMAIL;
+const adminPassword = process.env.ADMIN_PASSWORD;
 
-const repoRootCandidates = [process.cwd(), resolve(process.cwd(), "../..")];
-const repoRoot =
-	repoRootCandidates.find((candidatePath) => existsSync(resolve(candidatePath, "pnpm-workspace.yaml"))) ??
-	process.cwd();
-const localEnvPath = `${repoRoot}/.env.local`;
-const productionEnvPath = `${repoRoot}/.env`;
-
-config({
-	path:
-		process.env.NODE_ENV === "production"
-			? productionEnvPath
-			: existsSync(localEnvPath)
-				? localEnvPath
-				: productionEnvPath,
-});
-
-if (!process.env.DATABASE_URL) {
-	throw new Error("DATABASE_URL must be defined before running the seed script.");
+if (!adminEmail) {
+	throw new Error("ADMIN_EMAIL must be defined before running the seed script.");
 }
 
-const adapter = new PrismaPg({
-	connectionString: process.env.DATABASE_URL,
-});
-
-const prisma = new PrismaClient({ adapter });
+if (!adminPassword) {
+	throw new Error("ADMIN_PASSWORD must be defined before running the seed script.");
+}
 
 const seed = async () => {
 	await prisma.task.deleteMany();
 	await prisma.epic.deleteMany();
 	await prisma.project.deleteMany();
+	await prisma.session.deleteMany();
+	await prisma.account.deleteMany();
+	await prisma.verification.deleteMany();
 	await prisma.user.deleteMany();
 
-	const user = await prisma.user.create({
-		data: {
-			id: "user-admin",
-			email: "owner@kainban.dev",
-			name: "Kainban Owner",
+	await auth.api.signUpEmail({
+		body: {
+			email: adminEmail,
+			name: "Kainban Admin",
+			password: adminPassword,
+		},
+	});
+	const user = await prisma.user.findUniqueOrThrow({
+		where: {
+			email: adminEmail,
 		},
 	});
 

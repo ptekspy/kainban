@@ -10,19 +10,37 @@ import type {
 	Task,
 } from "@repo/types/Kanban/types";
 import { updateTaskColumn } from "@repo/utils/Kanban/update-task-column";
-import { type DragEvent, useState } from "react";
+import { type DragEvent, useEffect, useState } from "react";
+import { epicSchema } from "../schemas/epic";
+import { projectSchema } from "../schemas/project";
+import { taskSchema } from "../schemas/task";
 
-export const useKanbanBoard = () => {
-	const [state, setState] = useState<KanbanBoardState>({
-		activeProjectId: MOCK_PROJECTS[0]?.id ?? null,
-		projects: MOCK_PROJECTS,
-	});
+const createBoardState = (projects: Project[]): KanbanBoardState => ({
+	activeProjectId: projects[0]?.id ?? null,
+	projects,
+});
+
+export const useKanbanBoard = (initialProjects: Project[] = MOCK_PROJECTS) => {
+	const [state, setState] = useState<KanbanBoardState>(() =>
+		createBoardState(initialProjects),
+	);
 	const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
 	const [activeDropColumn, setActiveDropColumn] =
 		useState<KanbanColumnKey | null>(null);
 	const activeProject =
 		state.projects.find((project) => project.id === state.activeProjectId) ??
 		null;
+
+	useEffect(() => {
+		setState((currentState) => ({
+			activeProjectId: initialProjects.some(
+				(project) => project.id === currentState.activeProjectId,
+			)
+				? currentState.activeProjectId
+				: (initialProjects[0]?.id ?? null),
+			projects: initialProjects,
+		}));
+	}, [initialProjects]);
 
 	const updateActiveProject = (updater: (project: Project) => Project) => {
 		if (!activeProject) {
@@ -55,6 +73,36 @@ export const useKanbanBoard = () => {
 		return activeProject?.tasks.find((task) => task.id === taskId) ?? null;
 	};
 
+	const areDependenciesInColumn = (
+		task: Task,
+		column: KanbanColumnKey,
+		project: Project,
+	) => {
+		return task.dependencyTaskIds.every((dependencyTaskId) =>
+			project.tasks.some(
+				(candidateTask) =>
+					candidateTask.id === dependencyTaskId && candidateTask.column === column,
+			),
+		);
+	};
+
+	const releaseBlockedTasks = (project: Project) => {
+		return project.tasks.map((task) => {
+			if (
+				task.column !== "TODO" ||
+				task.dependencyTaskIds.length === 0 ||
+				!areDependenciesInColumn(task, "RELEASED", project)
+			) {
+				return task;
+			}
+
+			return {
+				...task,
+				column: "READY_FOR_DEVELOPMENT" as const,
+			};
+		});
+	};
+
 	const getDependencyOptions = (search: string) => {
 		const normalizedSearch = search.trim().toLowerCase();
 		const taskOptions = activeProject?.tasks ?? [];
@@ -79,23 +127,75 @@ export const useKanbanBoard = () => {
 	};
 
 	const canMoveTask = (taskId: string, newColumn: KanbanColumnKey) => {
-		const currentTask = activeProject?.tasks.find((task) => task.id === taskId);
+		const currentProject = activeProject;
+		if (!currentProject) {
+			return false;
+		}
+
+		const currentTask = currentProject.tasks.find((task) => task.id === taskId);
 		if (!currentTask || currentTask.column === newColumn) {
+			return false;
+		}
+
+		if (
+			newColumn === "READY_FOR_DEVELOPMENT" &&
+			!areDependenciesInColumn(currentTask, "IN_RELEASE", currentProject)
+		) {
 			return false;
 		}
 
 		return KANBAN_FLOW[currentTask.column].to.includes(newColumn);
 	};
 
+	const getMoveTaskResult = (taskId: string, newColumn: KanbanColumnKey) => {
+		const currentProject = activeProject;
+		if (!currentProject || !canMoveTask(taskId, newColumn)) {
+			return {
+				success: false as const,
+				reason: "Unable to move the selected task.",
+			};
+		}
+
+		const nextTasks =
+			newColumn === "RELEASED"
+				? releaseBlockedTasks({
+						...currentProject,
+						tasks: updateTaskColumn(currentProject.tasks, taskId, newColumn),
+					})
+				: updateTaskColumn(currentProject.tasks, taskId, newColumn);
+		const changes = nextTasks
+			.filter((task) => {
+				const currentTask = currentProject.tasks.find(
+					(candidateTask) => candidateTask.id === task.id,
+				);
+
+				return currentTask?.column !== task.column;
+			})
+			.map((task) => ({
+				taskId: task.id,
+				column: task.column,
+			}));
+
+		return {
+			success: true as const,
+			changes,
+			tasks: nextTasks,
+		};
+	};
+
 	const handleMoveTask = (taskId: string, newColumn: KanbanColumnKey) => {
-		if (!canMoveTask(taskId, newColumn)) {
-			return;
+		const moveResult = getMoveTaskResult(taskId, newColumn);
+
+		if (!moveResult.success) {
+			return moveResult;
 		}
 
 		updateActiveProject((project) => ({
 			...project,
-			tasks: updateTaskColumn(project.tasks, taskId, newColumn),
+			tasks: moveResult.tasks,
 		}));
+
+		return moveResult;
 	};
 
 	const handleDragStart = (event: DragEvent<HTMLLIElement>, taskId: string) => {
@@ -135,13 +235,31 @@ export const useKanbanBoard = () => {
 	const handleDrop = (
 		event: DragEvent<HTMLUListElement>,
 		column: KanbanColumnKey,
+		onMoveTasks?: (
+			changes: Array<{ column: KanbanColumnKey; taskId: string }>,
+			project: Project,
+		) => Promise<void>,
 	) => {
 		event.preventDefault();
 		const taskId = draggedTaskId ?? event.dataTransfer.getData("text/task-id");
-
-		handleMoveTask(taskId, column);
+		const currentProject = activeProject;
+		const moveResult = getMoveTaskResult(taskId, column);
 		setDraggedTaskId(null);
 		setActiveDropColumn(null);
+
+		if (!moveResult.success) {
+			return;
+		}
+
+		if (onMoveTasks && currentProject) {
+			void onMoveTasks(moveResult.changes, currentProject).catch(() => {});
+			return;
+		}
+
+		updateActiveProject((project) => ({
+			...project,
+			tasks: moveResult.tasks,
+		}));
 	};
 
 	const handleSelectProject = (projectId: string) => {
@@ -158,16 +276,19 @@ export const useKanbanBoard = () => {
 		abbreviation: string;
 		githubRepoUrl: string;
 	}) => {
-		const normalizedAbbreviation = input.abbreviation
-			.trim()
-			.toUpperCase()
-			.replace(/[^A-Z0-9]/g, "");
+		const validation = validateCreateProjectInput(input);
+
+		if (!validation.success) {
+			return validation;
+		}
+
+		const normalizedProject = validation.data;
 
 		const newProject: Project = {
-			id: `project-${normalizedAbbreviation.toLowerCase()}`,
-			name: input.name.trim(),
-			abbreviation: normalizedAbbreviation,
-			githubRepoUrl: input.githubRepoUrl.trim(),
+			id: `project-${normalizedProject.abbreviation.toLowerCase()}`,
+			name: normalizedProject.name,
+			abbreviation: normalizedProject.abbreviation,
+			githubRepoUrl: normalizedProject.githubRepoUrl,
 			epics: [],
 			tasks: [],
 		};
@@ -178,34 +299,78 @@ export const useKanbanBoard = () => {
 		}));
 		setDraggedTaskId(null);
 		setActiveDropColumn(null);
+
+		return { success: true as const, project: newProject };
 	};
 
 	const handleCreateEpic = (input: { description?: string; name: string }) => {
 		if (!activeProject) {
-			return;
+			return { success: false as const, reason: "No active project selected." };
 		}
 
-		const normalizedName = input.name.trim();
-		if (normalizedName.length === 0) {
-			return;
+		const validation = validateCreateEpicInput(input);
+		if (!validation.success) {
+			return validation;
 		}
 
+		const normalizedEpic = validation.data;
 		const newEpic: Epic = {
-			id: `${activeProject.abbreviation.toLowerCase()}-${normalizedName
+			id: `${activeProject.abbreviation.toLowerCase()}-${normalizedEpic.name
 				.toLowerCase()
 				.replace(/[^a-z0-9]+/g, "-")
 				.replace(/^-+|-+$/g, "")}`,
-			name: normalizedName,
-			description: input.description?.trim() || undefined,
+			name: normalizedEpic.name,
+			description: normalizedEpic.description || undefined,
 		};
 
 		updateActiveProject((project) => ({
 			...project,
 			epics: [...project.epics, newEpic],
 		}));
+
+		return { success: true as const, epic: newEpic };
 	};
 
-	const handleCreateTask = (input: {
+	const validateCreateProjectInput = (input: {
+		name: string;
+		abbreviation: string;
+		githubRepoUrl: string;
+	}) => {
+		const parsed = projectSchema.safeParse(input);
+
+		if (!parsed.success) {
+			return {
+				success: false as const,
+				reason: parsed.error.issues[0]?.message ?? "Project input is invalid.",
+			};
+		}
+
+		return {
+			success: true as const,
+			data: parsed.data,
+		};
+	};
+
+	const validateCreateEpicInput = (input: {
+		description?: string;
+		name: string;
+	}) => {
+		const parsed = epicSchema.safeParse(input);
+
+		if (!parsed.success) {
+			return {
+				success: false as const,
+				reason: parsed.error.issues[0]?.message ?? "Epic input is invalid.",
+			};
+		}
+
+		return {
+			success: true as const,
+			data: parsed.data,
+		};
+	};
+
+	const validateCreateTaskInput = (input: {
 		dependencyTaskIds: string[];
 		description?: string;
 		epicId: string;
@@ -215,19 +380,24 @@ export const useKanbanBoard = () => {
 			return { success: false as const, reason: "No active project selected." };
 		}
 
-		const trimmedTitle = input.title.trim();
-		const normalizedDependencyTaskIds = [...new Set(input.dependencyTaskIds)];
-		const epicExists = activeProject.epics.some(
-			(epic) => epic.id === input.epicId,
-		);
+		const parsed = taskSchema.safeParse(input);
+		if (!parsed.success) {
+			return {
+				success: false as const,
+				reason: parsed.error.issues[0]?.message ?? "Task input is invalid.",
+			};
+		}
+
+		const {
+			dependencyTaskIds: normalizedDependencyTaskIds,
+			epicId,
+			title,
+		} = parsed.data;
+		const epicExists = activeProject.epics.some((epic) => epic.id === epicId);
 		const allDependencyTasksExist = normalizedDependencyTaskIds.every(
 			(dependencyId) =>
 				activeProject.tasks.some((task) => task.id === dependencyId),
 		);
-
-		if (trimmedTitle.length === 0) {
-			return { success: false as const, reason: "Task title is required." };
-		}
 
 		if (!epicExists) {
 			return {
@@ -253,10 +423,38 @@ export const useKanbanBoard = () => {
 			};
 		}
 
+		return {
+			success: true as const,
+			normalizedDependencyTaskIds,
+			trimmedDescription: parsed.data.description || undefined,
+			trimmedTitle: title,
+		};
+	};
+
+	const handleCreateTask = (input: {
+		dependencyTaskIds: string[];
+		description?: string;
+		epicId: string;
+		title: string;
+	}) => {
+		const validation = validateCreateTaskInput(input);
+
+		if (!validation.success) {
+			return validation;
+		}
+
+		const currentProject = activeProject;
+		if (!currentProject) {
+			return { success: false as const, reason: "No active project selected." };
+		}
+
+		const { normalizedDependencyTaskIds, trimmedDescription, trimmedTitle } =
+			validation;
 		const newTask: Task = {
-			id: `${activeProject.abbreviation}-${activeProject.tasks.length + 1}`,
+			id: `${currentProject.abbreviation}-${currentProject.tasks.length + 1}`,
+			sourceId: `${currentProject.abbreviation}-${currentProject.tasks.length + 1}`,
 			title: trimmedTitle,
-			description: input.description?.trim() || undefined,
+			description: trimmedDescription,
 			column: "TODO",
 			epicId: input.epicId,
 			dependencyTaskIds: normalizedDependencyTaskIds,
@@ -278,6 +476,7 @@ export const useKanbanBoard = () => {
 		getTaskById,
 		projects: state.projects,
 		getCountForColumn,
+		getMoveTaskResult,
 		getTasksForColumn,
 		handleCreateProject,
 		handleCreateEpic,
@@ -289,5 +488,8 @@ export const useKanbanBoard = () => {
 		handleDrop,
 		handleMoveTask,
 		handleSelectProject,
+		validateCreateEpicInput,
+		validateCreateProjectInput,
+		validateCreateTaskInput,
 	};
 };

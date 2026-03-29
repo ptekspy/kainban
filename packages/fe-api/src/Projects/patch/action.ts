@@ -1,5 +1,3 @@
-"use server";
-
 import { apiRequest } from "../../shared/api-client";
 import type { ApiProject, ProjectPatchInput } from "../../shared/types";
 

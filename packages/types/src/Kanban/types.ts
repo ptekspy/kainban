@@ -21,6 +21,7 @@ export interface KanbanColumnTransitions {
 
 export interface Task {
 	id: string;
+	sourceId?: string;
 	title: string;
 	description?: string;
 	column: KanbanColumnKey;

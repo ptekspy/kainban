@@ -16,6 +16,12 @@ export interface ApiProject {
 	updatedAt: string;
 }
 
+export interface ApiProjectOwner {
+	id: string;
+	email: string;
+	name: string | null;
+}
+
 export interface ApiEpic {
 	id: string;
 	name: string;
@@ -46,6 +52,21 @@ export interface ApiTask {
 	epicId: string;
 	createdAt: string;
 	updatedAt: string;
+}
+
+export interface ApiTaskReference {
+	id: string;
+	ticketNumber: number;
+}
+
+export interface ApiTaskRecord extends ApiTask {
+	dependencies: ApiTaskReference[];
+}
+
+export interface ApiProjectRecord extends ApiProject {
+	epics: ApiEpic[];
+	owner: ApiProjectOwner;
+	tasks: ApiTaskRecord[];
 }
 
 export interface GetByIdInput {

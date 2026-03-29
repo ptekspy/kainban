@@ -32,7 +32,47 @@ const createItemEvent = (dataTransfer: DataTransfer) => {
 	} as unknown as DragEvent<HTMLLIElement>;
 };
 
+const createReleaseRuleProject = (tasks: Array<{
+	id: string;
+	title: string;
+	column: KanbanColumnKey;
+	epicId: string;
+	dependencyTaskIds: string[];
+}>) => [
+	{
+		id: "project-release-rule",
+		name: "Release Rule",
+		abbreviation: "REL",
+		githubRepoUrl: "https://github.com/example/release-rule",
+		epics: [
+			{
+				id: "rel-foundations",
+				name: "Foundations",
+			},
+		],
+		tasks,
+	},
+];
+
 describe("useKanbanBoard", () => {
+	it("supports injecting projects from fetched data", () => {
+		const projects = [
+			{
+				id: "project-live",
+				name: "Live Project",
+				abbreviation: "LIV",
+				githubRepoUrl: "https://github.com/example/live",
+				epics: [],
+				tasks: [],
+			},
+		];
+
+		const { result } = renderHook(() => useKanbanBoard(projects));
+
+		expect(result.current.projects).toEqual(projects);
+		expect(result.current.activeProject?.id).toBe("project-live");
+	});
+
 	it("moves a task through the drag-and-drop lifecycle", () => {
 		const { result } = renderHook(() => useKanbanBoard());
 		const dataTransfer = createDataTransfer();
@@ -77,6 +117,42 @@ describe("useKanbanBoard", () => {
 				.getTasksForColumn("READY_FOR_DEVELOPMENT")
 				.some((task) => task.id === "KAN-1"),
 		).toBe(true);
+	});
+
+	it("returns all task changes when a release move auto-unblocks dependents", () => {
+		const projects = createReleaseRuleProject([
+			{
+				id: "REL-1",
+				title: "Dependency",
+				column: "IN_RELEASE",
+				epicId: "rel-foundations",
+				dependencyTaskIds: [],
+			},
+			{
+				id: "REL-2",
+				title: "Blocked task",
+				column: "TODO",
+				epicId: "rel-foundations",
+				dependencyTaskIds: ["REL-1"],
+			},
+		]);
+		const { result } = renderHook(() => useKanbanBoard(projects));
+
+		expect(
+			result.current.getMoveTaskResult("REL-1", "RELEASED"),
+		).toMatchObject({
+			success: true,
+			changes: [
+				{
+					taskId: "REL-1",
+					column: "RELEASED",
+				},
+				{
+					taskId: "REL-2",
+					column: "READY_FOR_DEVELOPMENT",
+				},
+			],
+		});
 	});
 
 	it("clears the active drop column when drag leaves the current target", () => {
@@ -210,5 +286,142 @@ describe("useKanbanBoard", () => {
 		expect(
 			result.current.getDependencyOptions("platform").map((task) => task.id),
 		).toEqual(["KAN-3"]);
+	});
+
+	it("blocks moving a task to ready for development until all dependencies are in release", () => {
+		const projects = createReleaseRuleProject([
+			{
+				id: "REL-1",
+				title: "Dependency",
+				column: "IN_DEVELOPMENT",
+				epicId: "rel-foundations",
+				dependencyTaskIds: [],
+			},
+			{
+				id: "REL-2",
+				title: "Blocked task",
+				column: "TODO",
+				epicId: "rel-foundations",
+				dependencyTaskIds: ["REL-1"],
+			},
+		]);
+		const { result } = renderHook(() => useKanbanBoard(projects));
+
+		act(() => {
+			result.current.handleMoveTask("REL-2", "READY_FOR_DEVELOPMENT");
+		});
+
+		expect(
+			result.current.getTasksForColumn("TODO").some((task) => task.id === "REL-2"),
+		).toBe(true);
+	});
+
+	it("allows moving a task to ready for development when all dependencies are in release", () => {
+		const projects = createReleaseRuleProject([
+			{
+				id: "REL-1",
+				title: "Dependency",
+				column: "IN_RELEASE",
+				epicId: "rel-foundations",
+				dependencyTaskIds: [],
+			},
+			{
+				id: "REL-2",
+				title: "Blocked task",
+				column: "TODO",
+				epicId: "rel-foundations",
+				dependencyTaskIds: ["REL-1"],
+			},
+		]);
+		const { result } = renderHook(() => useKanbanBoard(projects));
+
+		act(() => {
+			result.current.handleMoveTask("REL-2", "READY_FOR_DEVELOPMENT");
+		});
+
+		expect(
+			result.current
+				.getTasksForColumn("READY_FOR_DEVELOPMENT")
+				.some((task) => task.id === "REL-2"),
+		).toBe(true);
+	});
+
+	it("automatically moves newly unblocked tasks to ready for development when a dependency is released", () => {
+		const projects = createReleaseRuleProject([
+			{
+				id: "REL-1",
+				title: "Dependency",
+				column: "IN_RELEASE",
+				epicId: "rel-foundations",
+				dependencyTaskIds: [],
+			},
+			{
+				id: "REL-2",
+				title: "Blocked task",
+				column: "TODO",
+				epicId: "rel-foundations",
+				dependencyTaskIds: ["REL-1"],
+			},
+		]);
+		const { result } = renderHook(() => useKanbanBoard(projects));
+
+		act(() => {
+			result.current.handleMoveTask("REL-1", "RELEASED");
+		});
+
+		expect(
+			result.current
+				.getTasksForColumn("READY_FOR_DEVELOPMENT")
+				.some((task) => task.id === "REL-2"),
+		).toBe(true);
+	});
+
+	it("keeps tasks blocked until every dependency is released", () => {
+		const projects = createReleaseRuleProject([
+			{
+				id: "REL-1",
+				title: "Dependency A",
+				column: "IN_RELEASE",
+				epicId: "rel-foundations",
+				dependencyTaskIds: [],
+			},
+			{
+				id: "REL-2",
+				title: "Dependency B",
+				column: "READY_FOR_RELEASE",
+				epicId: "rel-foundations",
+				dependencyTaskIds: [],
+			},
+			{
+				id: "REL-3",
+				title: "Blocked task",
+				column: "TODO",
+				epicId: "rel-foundations",
+				dependencyTaskIds: ["REL-1", "REL-2"],
+			},
+		]);
+		const { result } = renderHook(() => useKanbanBoard(projects));
+
+		act(() => {
+			result.current.handleMoveTask("REL-1", "RELEASED");
+		});
+
+		expect(
+			result.current.getTasksForColumn("TODO").some((task) => task.id === "REL-3"),
+		).toBe(true);
+
+		act(() => {
+			result.current.handleMoveTask("REL-2", "IN_RELEASE");
+		});
+
+		act(() => {
+			result.current.handleMoveTask("REL-2", "RELEASED");
+		});
+
+		expect(
+			result.current
+				.getTasksForColumn("READY_FOR_DEVELOPMENT")
+				.some((task) => task.id === "REL-3"),
+		).toBe(true);
 	});
 });

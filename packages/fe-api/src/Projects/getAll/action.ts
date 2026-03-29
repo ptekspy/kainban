@@ -1,6 +1,7 @@
-"use server";
-
 import { apiRequest } from "../../shared/api-client";
-import type { ApiProject } from "../../shared/types";
+import type { ApiProjectRecord } from "../../shared/types";
 
-export const getAllProjects = () => apiRequest<ApiProject[]>("/projects");
+export const getAllProjects = (options?: { headers?: HeadersInit }) =>
+	apiRequest<ApiProjectRecord[]>("/projects", {
+		headers: options?.headers,
+	});

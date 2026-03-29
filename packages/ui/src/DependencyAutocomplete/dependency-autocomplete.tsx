@@ -23,13 +23,17 @@ export const DependencyAutocomplete = ({
 	selectedIds,
 	setSearch,
 }: DependencyAutocompleteProps) => {
+	const normalizedSearch = search.trim().toLowerCase();
 	const selectedOptions = options.filter((option) =>
 		selectedIds.includes(option.id),
 	);
 	const availableOptions = options.filter(
 		(option) =>
 			!selectedIds.includes(option.id) &&
-			option.label.toLowerCase().includes(search.trim().toLowerCase()),
+			(normalizedSearch.length === 0 ||
+				option.id.toLowerCase().includes(normalizedSearch) ||
+				option.label.toLowerCase().includes(normalizedSearch) ||
+				option.description?.toLowerCase().includes(normalizedSearch)),
 	);
 
 	return (

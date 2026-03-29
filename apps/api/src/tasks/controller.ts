@@ -1,8 +1,13 @@
 import { Hono } from "hono";
+import type { RealtimePublisher } from "../realtime/realtime-server.js";
+import { realtimeServer } from "../server.js";
 import type { TaskUpdateData } from "./repository.js";
 import { type createTaskService, type TaskCreateInput, taskService } from "./service.js";
 
-export const createTaskController = (service: ReturnType<typeof createTaskService>) => {
+export const createTaskController = (
+	service: ReturnType<typeof createTaskService>,
+	realtimePublisher: RealtimePublisher = realtimeServer,
+) => {
 	const controller = new Hono();
 
 	controller.get("/", async (c) => {
@@ -23,6 +28,13 @@ export const createTaskController = (service: ReturnType<typeof createTaskServic
 	controller.post("/", async (c) => {
 		const body = await c.req.json<TaskCreateInput>();
 		const task = await service.create(body);
+		realtimePublisher.publish({
+			action: "created",
+			entity: "task",
+			entityId: task.id,
+			projectId: task.projectId,
+			type: "task.created",
+		});
 		return c.json(task, 201);
 	});
 
@@ -34,6 +46,13 @@ export const createTaskController = (service: ReturnType<typeof createTaskServic
 			return c.json({ message: "Task not found" }, 404);
 		}
 
+		realtimePublisher.publish({
+			action: "updated",
+			entity: "task",
+			entityId: task.id,
+			projectId: task.projectId,
+			type: "task.updated",
+		});
 		return c.json(task);
 	});
 
@@ -44,10 +63,17 @@ export const createTaskController = (service: ReturnType<typeof createTaskServic
 			return c.json({ message: "Task not found" }, 404);
 		}
 
+		realtimePublisher.publish({
+			action: "deleted",
+			entity: "task",
+			entityId: task.id,
+			projectId: task.projectId,
+			type: "task.deleted",
+		});
 		return c.body(null, 204);
 	});
 
 	return controller;
 };
 
-export const taskController = createTaskController(taskService);
+export const taskController = createTaskController(taskService, realtimeServer);

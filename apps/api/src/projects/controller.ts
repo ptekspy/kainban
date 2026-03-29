@@ -1,8 +1,13 @@
 import { Hono } from "hono";
 import type { Prisma } from "../generated/prisma/client.js";
+import type { RealtimePublisher } from "../realtime/realtime-server.js";
+import { realtimeServer } from "../server.js";
 import { type createProjectService, projectService } from "./service.js";
 
-export const createProjectController = (service: ReturnType<typeof createProjectService>) => {
+export const createProjectController = (
+	service: ReturnType<typeof createProjectService>,
+	realtimePublisher: RealtimePublisher = realtimeServer,
+) => {
 	const controller = new Hono();
 
 	controller.get("/", async (c) => {
@@ -23,6 +28,13 @@ export const createProjectController = (service: ReturnType<typeof createProject
 	controller.post("/", async (c) => {
 		const body = await c.req.json<Prisma.ProjectUncheckedCreateInput>();
 		const project = await service.create(body);
+		realtimePublisher.publish({
+			action: "created",
+			entity: "project",
+			entityId: project.id,
+			projectId: project.id,
+			type: "project.created",
+		});
 		return c.json(project, 201);
 	});
 
@@ -34,6 +46,13 @@ export const createProjectController = (service: ReturnType<typeof createProject
 			return c.json({ message: "Project not found" }, 404);
 		}
 
+		realtimePublisher.publish({
+			action: "updated",
+			entity: "project",
+			entityId: project.id,
+			projectId: project.id,
+			type: "project.updated",
+		});
 		return c.json(project);
 	});
 
@@ -44,10 +63,17 @@ export const createProjectController = (service: ReturnType<typeof createProject
 			return c.json({ message: "Project not found" }, 404);
 		}
 
+		realtimePublisher.publish({
+			action: "deleted",
+			entity: "project",
+			entityId: project.id,
+			projectId: project.id,
+			type: "project.deleted",
+		});
 		return c.body(null, 204);
 	});
 
 	return controller;
 };
 
-export const projectController = createProjectController(projectService);
+export const projectController = createProjectController(projectService, realtimeServer);

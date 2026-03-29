@@ -28,6 +28,32 @@ describe("DependencyAutocomplete", () => {
 		expect(screen.queryByText("KAN-2")).not.toBeInTheDocument();
 	});
 
+	it("matches task id and description in search results", () => {
+		render(
+			<DependencyAutocomplete
+				options={[
+					{
+						id: "KAN-1",
+						label: "Implement authentication",
+						description: "Platform",
+					},
+					{
+						id: "KAN-2",
+						label: "Design database schema",
+						description: "Billing",
+					},
+				]}
+				search="bill"
+				selectedIds={[]}
+				setSearch={vi.fn()}
+				onChange={vi.fn()}
+			/>,
+		);
+
+		expect(screen.getByText("KAN-2")).toBeInTheDocument();
+		expect(screen.queryByText("KAN-1")).not.toBeInTheDocument();
+	});
+
 	it("adds and removes selected dependencies", () => {
 		const onChange = vi.fn();
 		const setSearch = vi.fn();
