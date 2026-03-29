@@ -2,8 +2,10 @@
 	"name": "@repo/utils",
 	"version": "0.0.0",
 	"private": true,
+	"type": "module",
 	"exports": {
-		"./Kanban/update-task-column": "./src/Kanban/update-task-column.ts"
+		"./Kanban/update-task-column": "./src/Kanban/update-task-column.ts",
+		"./ProjectWorkspace/project-workspace": "./src/ProjectWorkspace/project-workspace.ts"
 	},
 	"scripts": {
 		"lint": "biome check --write",
@@ -11,7 +13,9 @@
 		"test": "vitest run"
 	},
 	"dependencies": {
-		"@repo/types": "workspace:*"
+		"@repo/types": "workspace:*",
+		"isomorphic-git": "^1.37.4",
+		"octokit": "^5.0.5"
 	},
 	"devDependencies": {
 		"@repo/biome-config": "workspace:^",
