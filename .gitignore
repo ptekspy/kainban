@@ -14,6 +14,8 @@ node_modules
 
 # Testing
 coverage
+**/coverage.json
+**/test-results/
 
 # Turbo
 .turbo
