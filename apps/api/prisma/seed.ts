@@ -1,32 +1,31 @@
-import { PrismaPg } from "@prisma/adapter-pg";
-import { config } from "dotenv";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { config } from "dotenv";
 import { PrismaClient, TaskStatus } from "../src/generated/prisma/client.js";
 
 const repoRootCandidates = [process.cwd(), resolve(process.cwd(), "../..")];
 const repoRoot =
-	repoRootCandidates.find((candidatePath) =>
-		existsSync(resolve(candidatePath, "pnpm-workspace.yaml")),
-	) ?? process.cwd();
+	repoRootCandidates.find((candidatePath) => existsSync(resolve(candidatePath, "pnpm-workspace.yaml"))) ??
+	process.cwd();
 const localEnvPath = `${repoRoot}/.env.local`;
 const productionEnvPath = `${repoRoot}/.env`;
 
 config({
 	path:
-		process.env["NODE_ENV"] === "production"
+		process.env.NODE_ENV === "production"
 			? productionEnvPath
 			: existsSync(localEnvPath)
 				? localEnvPath
 				: productionEnvPath,
 });
 
-if (!process.env["DATABASE_URL"]) {
+if (!process.env.DATABASE_URL) {
 	throw new Error("DATABASE_URL must be defined before running the seed script.");
 }
 
 const adapter = new PrismaPg({
-	connectionString: process.env["DATABASE_URL"],
+	connectionString: process.env.DATABASE_URL,
 });
 
 const prisma = new PrismaClient({ adapter });

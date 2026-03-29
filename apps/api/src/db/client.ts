@@ -1,7 +1,8 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { config } from "dotenv";
-import { defineConfig, env } from "prisma/config";
+import { PrismaClient } from "../generated/prisma/client.js";
 
 const repoRootCandidates = [process.cwd(), resolve(process.cwd(), "../..")];
 const repoRoot =
@@ -19,13 +20,12 @@ config({
 				: productionEnvPath,
 });
 
-export default defineConfig({
-	schema: "prisma/",
-	migrations: {
-		path: "prisma/migrations",
-		seed: "tsx prisma/seed.ts",
-	},
-	datasource: {
-		url: env("DATABASE_URL"),
-	},
+if (!process.env.DATABASE_URL) {
+	throw new Error("DATABASE_URL must be defined before using PrismaClient.");
+}
+
+const adapter = new PrismaPg({
+	connectionString: process.env.DATABASE_URL,
 });
+
+export const prisma = new PrismaClient({ adapter });
