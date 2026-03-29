@@ -100,36 +100,37 @@ export const createTaskService = (repository: ReturnType<typeof createTaskReposi
 	};
 
 	return {
-	getAll: () => repository.getAll(),
-	getById: (id: string) => repository.getById(id),
-	create: async (data: TaskCreateInput) => {
-		await validateDependencies({
-			projectId: data.projectId,
-			dependencyIds: data.dependencyIds,
-		});
-		const ticketNumber = await repository.getNextTicketNumber(data.projectId);
+		getAll: () => repository.getAll(),
+		getQueueOverview: () => repository.getQueueOverview(),
+		getById: (id: string) => repository.getById(id),
+		create: async (data: TaskCreateInput) => {
+			await validateDependencies({
+				projectId: data.projectId,
+				dependencyIds: data.dependencyIds,
+			});
+			const ticketNumber = await repository.getNextTicketNumber(data.projectId);
 
-		return repository.create({
-			...data,
-			ticketNumber,
-		});
-	},
-	update: async (id: string, data: TaskUpdateData) => {
-		const existingTask = await repository.getById(id);
+			return repository.create({
+				...data,
+				ticketNumber,
+			});
+		},
+		update: async (id: string, data: TaskUpdateData) => {
+			const existingTask = await repository.getById(id);
 
-		if (!existingTask) {
-			return null;
-		}
+			if (!existingTask) {
+				return null;
+			}
 
-		await validateDependencies({
-			taskId: id,
-			projectId: data.projectId ?? existingTask.projectId,
-			dependencyIds: data.dependencyIds,
-		});
+			await validateDependencies({
+				taskId: id,
+				projectId: data.projectId ?? existingTask.projectId,
+				dependencyIds: data.dependencyIds,
+			});
 
-		return repository.update(id, data);
-	},
-	delete: (id: string) => repository.delete(id),
+			return repository.update(id, data);
+		},
+		delete: (id: string) => repository.delete(id),
 	};
 };
 

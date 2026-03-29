@@ -9,12 +9,14 @@ const claimedTask: ClaimedTask = {
 	githubRepoUrl: "https://github.com/ptekspy/kainban",
 	ticketNumber: 12,
 	title: "Implement dev worker",
+	description: "Build a worker process that can claim and execute development tasks.",
 };
 
 describe("createTaskClaimService", () => {
 	it("claims exactly one task and keeps returning the active claim", async () => {
 		const repository = {
 			claimNextReadyTask: vi.fn().mockResolvedValue(claimedTask),
+			assignTaskWorkspace: vi.fn().mockResolvedValue(undefined),
 			returnTaskToReadyForDevelopment: vi.fn().mockResolvedValue(undefined),
 		};
 		const service = createTaskClaimService(repository);
@@ -27,6 +29,7 @@ describe("createTaskClaimService", () => {
 	it("requeues the active task and clears the lock", async () => {
 		const repository = {
 			claimNextReadyTask: vi.fn().mockResolvedValue(claimedTask),
+			assignTaskWorkspace: vi.fn().mockResolvedValue(undefined),
 			returnTaskToReadyForDevelopment: vi.fn().mockResolvedValue(undefined),
 		};
 		const service = createTaskClaimService(repository);

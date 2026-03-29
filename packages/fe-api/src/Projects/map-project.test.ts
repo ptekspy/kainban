@@ -34,6 +34,8 @@ describe("mapApiProjectToProject", () => {
 					title: "Set up auth",
 					description: null,
 					status: "TODO",
+					branchName: null,
+					worktreePath: null,
 					projectId: "project-kainban",
 					epicId: "epic-auth",
 					createdAt: "2026-03-29T00:00:00.000Z",

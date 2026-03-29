@@ -20,6 +20,7 @@ describe("task module", () => {
 		const repository = createTaskRepository(db);
 
 		await repository.getAll();
+		await repository.getQueueOverview();
 		await repository.getById("task-1");
 		await repository.getDependencyGraphByProject("project-1");
 		expect(await repository.getNextTicketNumber("project-1")).toBe(4);
@@ -36,7 +37,7 @@ describe("task module", () => {
 		});
 		await repository.delete("task-1");
 
-		expect(db.task.findMany).toHaveBeenCalledTimes(2);
+		expect(db.task.findMany).toHaveBeenCalledTimes(3);
 		expect(db.task.findUnique).toHaveBeenCalled();
 		expect(db.task.findFirst).toHaveBeenCalledTimes(1);
 		expect(db.task.create).toHaveBeenCalledTimes(1);
@@ -47,6 +48,12 @@ describe("task module", () => {
 	it("service assigns the next ticket number", async () => {
 		const repository = {
 			getAll: vi.fn().mockResolvedValue([{ id: "task-1" }]),
+			getQueueOverview: vi.fn().mockResolvedValue({
+				activeTasks: [],
+				queuedTasks: [],
+				blockedTasks: [],
+				summary: { activeCount: 0, blockedCount: 0, queuedCount: 0 },
+			}),
 			getById: vi.fn().mockResolvedValue({ id: "task-1" }),
 			getDependencyGraphByProject: vi.fn().mockResolvedValue([
 				{
@@ -122,6 +129,12 @@ describe("task module", () => {
 	it("controller exposes CRUD routes", async () => {
 		const service = {
 			getAll: vi.fn().mockResolvedValue([{ id: "task-1" }]),
+			getQueueOverview: vi.fn().mockResolvedValue({
+				activeTasks: [],
+				queuedTasks: [],
+				blockedTasks: [],
+				summary: { activeCount: 0, blockedCount: 0, queuedCount: 0 },
+			}),
 			getById: vi.fn().mockResolvedValueOnce({ id: "task-1" }).mockResolvedValueOnce(null),
 			create: vi.fn().mockResolvedValue({ id: "task-1" }),
 			update: vi.fn().mockResolvedValueOnce({ id: "task-1" }).mockResolvedValueOnce(null),
@@ -130,6 +143,7 @@ describe("task module", () => {
 		const app = new Hono();
 		app.route("/tasks", createTaskController(service as unknown as Parameters<typeof createTaskController>[0]));
 
+		expect((await app.request("/tasks/queue")).status).toBe(200);
 		expect((await app.request("/tasks")).status).toBe(200);
 		expect((await app.request("/tasks/task-1")).status).toBe(200);
 		expect((await app.request("/tasks/missing")).status).toBe(404);

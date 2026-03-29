@@ -43,6 +43,8 @@
 		"./Task/queryKeys": "./src/Task/queryKeys.ts",
 		"./Task/getAll/action": "./src/Task/getAll/action.ts",
 		"./Task/getAll/query": "./src/Task/getAll/query.ts",
+		"./Task/getQueue/action": "./src/Task/getQueue/action.ts",
+		"./Task/getQueue/query": "./src/Task/getQueue/query.ts",
 		"./Task/getById/action": "./src/Task/getById/action.ts",
 		"./Task/getById/query": "./src/Task/getById/query.ts",
 		"./Task/post/action": "./src/Task/post/action.ts",
