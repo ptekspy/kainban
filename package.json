@@ -3,7 +3,12 @@
   "private": true,
   "scripts": {
     "build": "turbo run build",
+    "db:generate": "pnpm --filter api db:generate",
+    "db:migrate:dev": "pnpm --filter api db:migrate:dev",
+    "db:seed": "pnpm --filter api db:seed",
     "dev": "turbo run dev",
+    "infra:local:down": "docker compose --env-file .env.local -f infra/local/docker-compose.yml down",
+    "infra:local:up": "docker compose --env-file .env.local -f infra/local/docker-compose.yml up -d",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,md}\"",
     "check-types": "turbo run check-types",

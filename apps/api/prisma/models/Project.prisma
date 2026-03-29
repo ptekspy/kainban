@@ -1,0 +1,57 @@
+model Project {
+    id            String   @id @default(cuid())
+    name          String
+    abbreviation  String   @unique
+    githubRepoUrl String   @unique
+    ownerId       String
+    owner         User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+    epics         Epic[]
+    tasks         Task[]
+    createdAt     DateTime @default(now())
+    updatedAt     DateTime @updatedAt
+}
+
+model Epic {
+    id          String   @id @default(cuid())
+    name        String
+    description String?
+    projectId   String
+    project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    tasks       Task[]
+    createdAt   DateTime @default(now())
+    updatedAt   DateTime @updatedAt
+
+    @@unique([projectId, name])
+}
+
+model Task {
+    id                String      @id @default(cuid())
+    ticketNumber      Int
+    title             String
+    description       String?
+    status            TaskStatus  @default(TODO)
+    projectId         String
+    epicId            String
+    project           Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+    epic              Epic        @relation(fields: [epicId], references: [id], onDelete: Restrict)
+    dependencies      Task[]      @relation("TaskDependencies")
+    dependents        Task[]      @relation("TaskDependencies")
+    createdAt         DateTime    @default(now())
+    updatedAt         DateTime    @updatedAt
+
+    @@unique([projectId, ticketNumber])
+    @@index([projectId, status])
+    @@index([epicId])
+}
+
+enum TaskStatus {
+    TODO
+    READY_FOR_DEVELOPMENT
+    IN_DEVELOPMENT
+    READY_FOR_REVIEW
+    IN_REVIEW
+    READY_FOR_RELEASE
+    IN_RELEASE
+    HUMAN_INTERVENTION
+    RELEASED
+}

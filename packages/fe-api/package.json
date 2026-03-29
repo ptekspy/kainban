@@ -1,0 +1,24 @@
+{
+	"name": "@repo/fe-api",
+	"version": "0.0.0",
+	"private": true,
+	"exports": {
+	},
+	"scripts": {
+		"lint": "biome check --write",
+		"check-types": "tsc --noEmit",
+		"test": "vitest run"
+	},
+	"dependencies": {
+		"@repo/types": "workspace:*"
+	},
+	"devDependencies": {
+		"@repo/biome-config": "workspace:^",
+		"@repo/typescript-config": "workspace:*",
+		"@types/node": "^22.15.3",
+		"typescript": "5.9.3",
+		"@repo/vitest-config": "workspace:*",
+		"@vitest/coverage-istanbul": "^4.1.2",
+		"vitest": "^4.1.2"
+	}
+}

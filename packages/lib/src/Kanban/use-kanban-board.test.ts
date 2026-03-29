@@ -125,4 +125,90 @@ describe("useKanbanBoard", () => {
 		expect(result.current.projects).toHaveLength(3);
 		expect(result.current.getCountForColumn("TODO")).toBe(0);
 	});
+
+	it("creates an epic on the active project", () => {
+		const { result } = renderHook(() => useKanbanBoard());
+
+		act(() => {
+			result.current.handleCreateEpic({
+				name: "Notifications",
+				description: "Email and in-app messaging work.",
+			});
+		});
+
+		expect(result.current.activeProject?.epics.at(-1)).toMatchObject({
+			name: "Notifications",
+			description: "Email and in-app messaging work.",
+		});
+	});
+
+	it("allows the first task on a project to be created without dependencies", () => {
+		const { result } = renderHook(() => useKanbanBoard());
+
+		act(() => {
+			result.current.handleCreateProject({
+				name: "Client Portal",
+				abbreviation: "cp",
+				githubRepoUrl: "https://github.com/example/client-portal",
+			});
+		});
+
+		act(() => {
+			result.current.handleCreateEpic({
+				name: "Portal Foundations",
+			});
+		});
+
+		const epicId = result.current.activeProject?.epics[0]?.id;
+
+		let outcome:
+			| ReturnType<typeof result.current.handleCreateTask>
+			| undefined = undefined;
+
+		act(() => {
+			outcome = result.current.handleCreateTask({
+				title: "Set up workspace shell",
+				epicId: epicId ?? "",
+				dependencyTaskIds: [],
+			});
+		});
+
+		expect(outcome).toMatchObject({ success: true });
+		expect(result.current.activeProject?.tasks[0]).toMatchObject({
+			id: "CP-1",
+			dependencyTaskIds: [],
+		});
+	});
+
+	it("requires dependencies for any task after the first one", () => {
+		const { result } = renderHook(() => useKanbanBoard());
+
+		let outcome:
+			| ReturnType<typeof result.current.handleCreateTask>
+			| undefined = undefined;
+
+		act(() => {
+			outcome = result.current.handleCreateTask({
+				title: "Ship release notes",
+				epicId: "kan-platform",
+				dependencyTaskIds: [],
+			});
+		});
+
+		expect(outcome).toMatchObject({
+			success: false,
+			reason: "Every task after the first one needs at least one dependency.",
+		});
+	});
+
+	it("returns dependency search results for autocomplete", () => {
+		const { result } = renderHook(() => useKanbanBoard());
+
+		expect(
+			result.current.getDependencyOptions("jwt").map((task) => task.id),
+		).toEqual(["KAN-1"]);
+		expect(
+			result.current.getDependencyOptions("platform").map((task) => task.id),
+		).toEqual(["KAN-3"]);
+	});
 });

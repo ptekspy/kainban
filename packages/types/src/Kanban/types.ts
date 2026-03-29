@@ -24,6 +24,14 @@ export interface Task {
 	title: string;
 	description?: string;
 	column: KanbanColumnKey;
+	epicId: string;
+	dependencyTaskIds: string[];
+}
+
+export interface Epic {
+	id: string;
+	name: string;
+	description?: string;
 }
 
 export interface Project {
@@ -31,6 +39,7 @@ export interface Project {
 	name: string;
 	abbreviation: string;
 	githubRepoUrl: string;
+	epics: Epic[];
 	tasks: Task[];
 }
 

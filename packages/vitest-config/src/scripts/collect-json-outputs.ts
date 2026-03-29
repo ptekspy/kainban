@@ -1,81 +1,75 @@
-import { access, copyFile, mkdir, stat } from "fs/promises";
-import { basename, join, normalize, sep } from "path";
+import { access, copyFile, mkdir, stat } from "node:fs/promises";
+import { join, normalize, relative, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import { glob } from "glob";
 
-async function collectCoverageFiles() {
-    try {
-        // Define the patterns to search
-        const patterns = ["../../apps/*", "../../packages/*"];
+const PACKAGE_ROOT = fileURLToPath(new URL("../..", import.meta.url));
+const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
+const DESTINATION_DIR = join(PACKAGE_ROOT, "coverage/raw");
+const SEARCH_PATTERNS = ["apps/*", "packages/*"];
 
-        // Define the destination directory (you can change this as needed)
-        const destinationDir = join(process.cwd(), "coverage/raw");
+const toDisplayPath = (path: string) => {
+	const normalized = normalize(path);
+	const parts = normalized.split(sep);
+	const filteredParts = parts.filter((part) => part !== ".." && part !== ".");
 
-        // Create the destination directory if it doesn't exist
-        await mkdir(destinationDir, { recursive: true });
+	return filteredParts.join(sep);
+};
 
-        // Arrays to collect all directories and directories with coverage.json
-        const allDirectories = [];
-        const directoriesWithCoverage = [];
+const toCoverageFileName = (directoryPath: string) => {
+	const relativeDirectoryPath = relative(REPO_ROOT, directoryPath);
 
-        // Process each pattern
-        for (const pattern of patterns) {
-            // Find all paths matching the pattern
-            const matches = await glob(pattern);
+	return `${relativeDirectoryPath.split(sep).join("-")}.json`;
+};
 
-            // Filter to only include directories
-            for (const match of matches) {
-                const stats = await stat(match);
+export const collectCoverageFiles = async () => {
+	try {
+		await mkdir(DESTINATION_DIR, { recursive: true });
+		const directoriesWithCoverage: string[] = [];
 
-                if (stats.isDirectory()) {
-                    allDirectories.push(match);
-                    const coverageFilePath = join(match, "coverage.json");
+		for (const pattern of SEARCH_PATTERNS) {
+			const matches = await glob(pattern, {
+				absolute: true,
+				cwd: REPO_ROOT,
+			});
 
-                    // Check if coverage.json exists in this directory
-                    try {
-                        await access(coverageFilePath);
+			for (const match of matches.sort()) {
+				const matchStats = await stat(match);
 
-                        // File exists, add to list of directories with coverage
-                        directoriesWithCoverage.push(match);
+				if (!matchStats.isDirectory()) {
+					continue;
+				}
 
-                        // Copy it to the destination with a unique name
-                        const directoryName = basename(match);
-                        const destinationFile = join(
-                            destinationDir,
-                            `${directoryName}.json`
-                        );
+				const coverageFilePath = join(match, "coverage.json");
 
-                        await copyFile(coverageFilePath, destinationFile);
-                    } catch (err) {
-                        // File doesn't exist in this directory, skip
-                    }
-                }
-            }
-        }
+				try {
+					await access(coverageFilePath);
+				} catch {
+					continue;
+				}
 
-        // Create clean patterns for display (without any "../" prefixes)
-        const replaceDotPatterns = (str: string) => {
-            // Normalize and remove any ".." or "." path segments for safe display
-            const normalized = normalize(str);
-            const parts = normalized.split(sep);
-            const filteredParts = parts.filter(
-                (part) => part !== ".." && part !== "."
-            );
-            return filteredParts.join(sep);
-        };
+				directoriesWithCoverage.push(match);
+				const destinationFilePath = join(DESTINATION_DIR, toCoverageFileName(match));
 
-        if (directoriesWithCoverage.length > 0) {
-            console.log(
-                `Found coverage.json in: ${directoriesWithCoverage
-                    .map(replaceDotPatterns)
-                    .join(", ")}`
-            );
-        }
+				await copyFile(coverageFilePath, destinationFilePath);
+			}
+		}
 
-        console.log(`Coverage collected into: ${join(process.cwd())}`);
-    } catch (error) {
-        console.error("Error collecting coverage files:", error);
-    }
-}
+		if (directoriesWithCoverage.length > 0) {
+			console.log(
+				`Found coverage.json in: ${directoriesWithCoverage
+					.map((directoryPath) => toDisplayPath(relative(REPO_ROOT, directoryPath)))
+					.join(", ")}`,
+			);
+		} else {
+			console.log("No coverage.json files found.");
+		}
 
-// Run the function
-collectCoverageFiles();
+		console.log(`Coverage collected into: ${DESTINATION_DIR}`);
+	} catch (error) {
+		console.error("Error collecting coverage files:", error);
+		process.exitCode = 1;
+	}
+};
+
+void collectCoverageFiles();

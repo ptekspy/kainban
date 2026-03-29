@@ -8,6 +8,8 @@ import {
 import { useKanbanBoard } from "@repo/lib/Kanban/use-kanban-board";
 import { useState } from "react";
 import { Button } from "../Button/button";
+import { DependencyAutocomplete } from "../DependencyAutocomplete/dependency-autocomplete";
+import { EpicList } from "../EpicList/epic-list";
 import { KanbanColumn } from "../KanbanColumn/kanban-column";
 import { KanbanTaskCard } from "../KanbanTaskCard/kanban-task-card";
 import { Modal } from "../Modal/modal";
@@ -18,17 +20,35 @@ interface KanbanBoardProps {
 
 export const KanbanBoard = ({ id = "kanban-board" }: KanbanBoardProps) => {
 	const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false);
+	const [isCreateEpicOpen, setIsCreateEpicOpen] = useState(false);
+	const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false);
 	const [projectForm, setProjectForm] = useState({
 		name: "",
 		abbreviation: "",
 		githubRepoUrl: "",
 	});
+	const [epicForm, setEpicForm] = useState({
+		name: "",
+		description: "",
+	});
+	const [taskForm, setTaskForm] = useState({
+		title: "",
+		description: "",
+		epicId: "",
+		dependencyTaskIds: [] as string[],
+	});
+	const [dependencySearch, setDependencySearch] = useState("");
+	const [taskFormError, setTaskFormError] = useState<string | null>(null);
 	const {
 		activeDropColumn,
 		activeProject,
+		getDependencyOptions,
+		getEpicById,
 		getCountForColumn,
 		getTasksForColumn,
+		handleCreateEpic,
 		handleCreateProject,
+		handleCreateTask,
 		handleDragEnd,
 		handleDragLeave,
 		handleDragOver,
@@ -42,6 +62,12 @@ export const KanbanBoard = ({ id = "kanban-board" }: KanbanBoardProps) => {
 		projectForm.name.trim().length === 0 ||
 		projectForm.abbreviation.trim().length === 0 ||
 		projectForm.githubRepoUrl.trim().length === 0;
+	const isCreateEpicDisabled = epicForm.name.trim().length === 0;
+	const taskRequiresDependency = (activeProject?.tasks.length ?? 0) > 0;
+	const isCreateTaskDisabled =
+		taskForm.title.trim().length === 0 ||
+		taskForm.epicId.length === 0 ||
+		(taskRequiresDependency && taskForm.dependencyTaskIds.length === 0);
 
 	const handleSubmitProject = () => {
 		if (isCreateDisabled) {
@@ -56,6 +82,46 @@ export const KanbanBoard = ({ id = "kanban-board" }: KanbanBoardProps) => {
 		});
 		setIsCreateProjectOpen(false);
 	};
+
+	const handleSubmitEpic = () => {
+		if (isCreateEpicDisabled) {
+			return;
+		}
+
+		handleCreateEpic(epicForm);
+		setEpicForm({
+			name: "",
+			description: "",
+		});
+		setIsCreateEpicOpen(false);
+	};
+
+	const handleSubmitTask = () => {
+		const outcome = handleCreateTask(taskForm);
+
+		if (!outcome.success) {
+			setTaskFormError(outcome.reason);
+			return;
+		}
+
+		setTaskForm({
+			title: "",
+			description: "",
+			epicId: "",
+			dependencyTaskIds: [],
+		});
+		setDependencySearch("");
+		setTaskFormError(null);
+		setIsCreateTaskOpen(false);
+	};
+
+	const epicCards =
+		activeProject?.epics.map((epic) => ({
+			...epic,
+			taskCount: activeProject.tasks.filter((task) => task.epicId === epic.id)
+				.length,
+		})) ?? [];
+	const dependencyOptions = getDependencyOptions("");
 
 	return (
 		<section
@@ -125,16 +191,56 @@ export const KanbanBoard = ({ id = "kanban-board" }: KanbanBoardProps) => {
 								ticket IDs, and repository context stay together.
 							</p>
 						</div>
-						{activeProject && (
-							<a
-								href={activeProject.githubRepoUrl}
-								target="_blank"
-								rel="noreferrer"
-								className="inline-flex rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-950"
-							>
-								Open GitHub Repository
-							</a>
-						)}
+						<div className="flex flex-wrap gap-3">
+							{activeProject ? (
+								<>
+									<Button
+										type="button"
+										intent="secondary"
+										onClick={() => setIsCreateEpicOpen(true)}
+									>
+										New Epic
+									</Button>
+									<Button
+										type="button"
+										onClick={() => {
+											setTaskForm((current) => ({
+												...current,
+												epicId: activeProject.epics[0]?.id ?? "",
+											}));
+											setTaskFormError(null);
+											setIsCreateTaskOpen(true);
+										}}
+									>
+										New Task
+									</Button>
+									<a
+										href={activeProject.githubRepoUrl}
+										target="_blank"
+										rel="noreferrer"
+										className="inline-flex rounded-full border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-400 hover:text-slate-950"
+									>
+										Open GitHub Repository
+									</a>
+								</>
+							) : null}
+						</div>
+					</div>
+					<div className="mt-6">
+						<div className="mb-3 flex items-center justify-between gap-3">
+							<div>
+								<h3 className="text-lg font-semibold text-slate-950">Epics</h3>
+								<p className="text-sm text-slate-600">
+									Tasks belong to an epic and can depend on earlier work.
+								</p>
+							</div>
+							{activeProject ? (
+								<span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-slate-600">
+									{activeProject.epics.length} epics
+								</span>
+							) : null}
+						</div>
+						<EpicList epics={epicCards} />
 					</div>
 					<div className="mt-6 flex gap-4 overflow-x-auto pb-2">
 						{KANBAN_COLUMN_KEYS.map((columnKey) => (
@@ -153,6 +259,8 @@ export const KanbanBoard = ({ id = "kanban-board" }: KanbanBoardProps) => {
 								{getTasksForColumn(columnKey).map((task) => (
 									<KanbanTaskCard
 										key={task.id}
+										dependencyTaskIds={task.dependencyTaskIds}
+										epicName={getEpicById(task.epicId)?.name ?? "Unknown Epic"}
 										task={task}
 										onDragStart={(event) => handleDragStart(event, task.id)}
 										onDragEnd={handleDragEnd}
@@ -231,6 +339,171 @@ export const KanbanBoard = ({ id = "kanban-board" }: KanbanBoardProps) => {
 						type="button"
 						intent="secondary"
 						onClick={() => setIsCreateProjectOpen(false)}
+					>
+						Cancel
+					</Button>
+				</div>
+			</Modal>
+			<Modal
+				isOpen={isCreateEpicOpen}
+				onClose={() => setIsCreateEpicOpen(false)}
+				title="Create epic"
+				description="Create a reusable epic grouping for related tasks."
+			>
+				<div className="space-y-3">
+					<label className="block text-sm">
+						<span className="mb-1 block text-slate-700">Epic name</span>
+						<input
+							value={epicForm.name}
+							onChange={(event) =>
+								setEpicForm((current) => ({
+									...current,
+									name: event.target.value,
+								}))
+							}
+							placeholder="Checkout Experience"
+							className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-slate-950 outline-none placeholder:text-slate-400 focus:border-cyan-500"
+						/>
+					</label>
+					<label className="block text-sm">
+						<span className="mb-1 block text-slate-700">Description</span>
+						<textarea
+							value={epicForm.description}
+							onChange={(event) =>
+								setEpicForm((current) => ({
+									...current,
+									description: event.target.value,
+								}))
+							}
+							placeholder="Shared business outcome or release stream."
+							className="min-h-24 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-slate-950 outline-none placeholder:text-slate-400 focus:border-cyan-500"
+						/>
+					</label>
+				</div>
+				<div className="mt-6 flex gap-3">
+					<Button
+						type="button"
+						onClick={handleSubmitEpic}
+						disabled={isCreateEpicDisabled}
+					>
+						Create epic
+					</Button>
+					<Button
+						type="button"
+						intent="secondary"
+						onClick={() => setIsCreateEpicOpen(false)}
+					>
+						Cancel
+					</Button>
+				</div>
+			</Modal>
+			<Modal
+				isOpen={isCreateTaskOpen}
+				onClose={() => setIsCreateTaskOpen(false)}
+				title="Create task"
+				description="Choose an epic and add at least one dependency unless this is the first task on the project."
+			>
+				<div className="space-y-3">
+					<label className="block text-sm">
+						<span className="mb-1 block text-slate-700">Task title</span>
+						<input
+							value={taskForm.title}
+							onChange={(event) =>
+								setTaskForm((current) => ({
+									...current,
+									title: event.target.value,
+								}))
+							}
+							placeholder="Implement billing webhook"
+							className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-slate-950 outline-none placeholder:text-slate-400 focus:border-cyan-500"
+						/>
+					</label>
+					<label className="block text-sm">
+						<span className="mb-1 block text-slate-700">Description</span>
+						<textarea
+							value={taskForm.description}
+							onChange={(event) =>
+								setTaskForm((current) => ({
+									...current,
+									description: event.target.value,
+								}))
+							}
+							placeholder="Optional implementation details."
+							className="min-h-24 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-slate-950 outline-none placeholder:text-slate-400 focus:border-cyan-500"
+						/>
+					</label>
+					<label className="block text-sm">
+						<span className="mb-1 block text-slate-700">Epic</span>
+						<select
+							value={taskForm.epicId}
+							onChange={(event) =>
+								setTaskForm((current) => ({
+									...current,
+									epicId: event.target.value,
+								}))
+							}
+							className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-slate-950 outline-none focus:border-cyan-500"
+						>
+							<option value="">Select an epic</option>
+							{activeProject?.epics.map((epic) => (
+								<option key={epic.id} value={epic.id}>
+									{epic.name}
+								</option>
+							))}
+						</select>
+					</label>
+					<div className="text-sm">
+						<div className="mb-1 flex items-center justify-between gap-3">
+							<span className="block text-slate-700">Dependencies</span>
+							<span className="text-xs text-slate-500">
+								{taskRequiresDependency
+									? "Required after the first task"
+									: "Optional for the first task"}
+							</span>
+						</div>
+						<DependencyAutocomplete
+							options={dependencyOptions.map((task) => ({
+								id: task.id,
+								label: task.title,
+								description: getEpicById(task.epicId)?.name,
+							}))}
+							search={dependencySearch}
+							setSearch={setDependencySearch}
+							selectedIds={taskForm.dependencyTaskIds}
+							onChange={(nextSelection) =>
+								setTaskForm((current) => ({
+									...current,
+									dependencyTaskIds: nextSelection,
+								}))
+							}
+							placeholder="Search by task ID, title, or epic"
+						/>
+					</div>
+					{activeProject?.epics.length === 0 ? (
+						<p className="rounded-2xl border border-dashed border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-800">
+							Create an epic before adding tasks to this project.
+						</p>
+					) : null}
+					{taskFormError ? (
+						<p className="rounded-2xl border border-rose-200 bg-rose-50 px-3 py-3 text-sm text-rose-700">
+							{taskFormError}
+						</p>
+					) : null}
+				</div>
+				<div className="mt-6 flex gap-3">
+					<Button
+						type="button"
+						onClick={handleSubmitTask}
+						disabled={
+							isCreateTaskDisabled || (activeProject?.epics.length ?? 0) === 0
+						}
+					>
+						Create task
+					</Button>
+					<Button
+						type="button"
+						intent="secondary"
+						onClick={() => setIsCreateTaskOpen(false)}
 					>
 						Cancel
 					</Button>
