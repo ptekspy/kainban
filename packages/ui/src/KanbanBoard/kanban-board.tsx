@@ -29,6 +29,7 @@ interface KanbanBoardProps {
 		name: string;
 		abbreviation: string;
 		githubRepoUrl: string;
+		githubPat?: string;
 	}) => Promise<{ id: string }>;
 	onCreateTask?: (
 		input: {
@@ -63,6 +64,7 @@ export const KanbanBoard = ({
 		name: "",
 		abbreviation: "",
 		githubRepoUrl: "",
+		githubPat: "",
 	});
 	const [epicForm, setEpicForm] = useState({
 		name: "",
@@ -78,6 +80,7 @@ export const KanbanBoard = ({
 	const [epicFormError, setEpicFormError] = useState<string | null>(null);
 	const [projectFormError, setProjectFormError] = useState<string | null>(null);
 	const [taskFormError, setTaskFormError] = useState<string | null>(null);
+	const [projectNeedsGithubPat, setProjectNeedsGithubPat] = useState(false);
 	const {
 		activeDropColumn,
 		activeProject,
@@ -113,16 +116,35 @@ export const KanbanBoard = ({
 			return;
 		}
 
+		const normalizedProject =
+			projectValidation.success ? projectValidation.data : null;
+
+		if (!normalizedProject) {
+			return;
+		}
+
 		try {
 			setProjectFormError(null);
 
 			if (onCreateProject) {
-				const createdProject = await onCreateProject(projectForm);
+				const createdProject = await onCreateProject({
+					...normalizedProject,
+					githubPat: projectForm.githubPat.trim() || undefined,
+				});
 				handleSelectProject(createdProject.id);
 			} else {
-				handleCreateProject(projectForm);
+				handleCreateProject(normalizedProject);
 			}
 		} catch (error) {
+			if (
+				typeof error === "object" &&
+				error !== null &&
+				"code" in error &&
+				error.code === "GITHUB_AUTH_REQUIRED"
+			) {
+				setProjectNeedsGithubPat(true);
+			}
+
 			setProjectFormError(
 				error instanceof Error
 					? error.message
@@ -135,7 +157,20 @@ export const KanbanBoard = ({
 			name: "",
 			abbreviation: "",
 			githubRepoUrl: "",
+			githubPat: "",
 		});
+		setProjectNeedsGithubPat(false);
+		setProjectFormError(null);
+		setIsCreateProjectOpen(false);
+	};
+
+	const handleCloseProjectModal = () => {
+		setProjectFormError(null);
+		setProjectNeedsGithubPat(false);
+		setProjectForm((current) => ({
+			...current,
+			githubPat: "",
+		}));
 		setIsCreateProjectOpen(false);
 	};
 
@@ -235,7 +270,11 @@ export const KanbanBoard = ({
 					<Button
 						type="button"
 						size="small"
-						onClick={() => setIsCreateProjectOpen((current) => !current)}
+						onClick={() => {
+							setProjectFormError(null);
+							setProjectNeedsGithubPat(false);
+							setIsCreateProjectOpen((current) => !current);
+						}}
 					>
 						New Project
 					</Button>
@@ -374,7 +413,7 @@ export const KanbanBoard = ({
 			</div>
 			<Modal
 				isOpen={isCreateProjectOpen}
-				onClose={() => setIsCreateProjectOpen(false)}
+				onClose={handleCloseProjectModal}
 				title="Create project"
 				description="Add a project name, ticket abbreviation, and GitHub repository URL."
 			>
@@ -422,6 +461,27 @@ export const KanbanBoard = ({
 							className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-slate-950 outline-none placeholder:text-slate-400 focus:border-cyan-500"
 						/>
 					</label>
+					{projectNeedsGithubPat ? (
+						<label className="block text-sm">
+							<span className="mb-1 block text-slate-700">GitHub PAT</span>
+							<input
+								type="password"
+								value={projectForm.githubPat}
+								onChange={(event) =>
+									setProjectForm((current) => ({
+										...current,
+										githubPat: event.target.value,
+									}))
+								}
+								placeholder="github_pat_xxxxx"
+								className="w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-slate-950 outline-none placeholder:text-slate-400 focus:border-cyan-500"
+							/>
+							<p className="mt-2 text-xs text-slate-500">
+								The repository could not be cloned anonymously. Add a PAT with
+								repo access and retry.
+							</p>
+						</label>
+					) : null}
 				</div>
 				<div className="mt-6 flex gap-3">
 					<Button
@@ -434,7 +494,7 @@ export const KanbanBoard = ({
 					<Button
 						type="button"
 						intent="secondary"
-						onClick={() => setIsCreateProjectOpen(false)}
+						onClick={handleCloseProjectModal}
 					>
 						Cancel
 					</Button>

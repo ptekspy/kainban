@@ -2,7 +2,8 @@ import { Hono } from "hono";
 import type { Prisma } from "../generated/prisma/client.js";
 import type { RealtimePublisher } from "../realtime/realtime-server.js";
 import { realtimeServer } from "../server.js";
-import { type createProjectService, projectService } from "./service.js";
+import { ProjectSetupError } from "./project-workspace.js";
+import { type createProjectService, type ProjectCreateInput, projectService } from "./service.js";
 
 export const createProjectController = (
 	service: ReturnType<typeof createProjectService>,
@@ -26,16 +27,32 @@ export const createProjectController = (
 	});
 
 	controller.post("/", async (c) => {
-		const body = await c.req.json<Prisma.ProjectUncheckedCreateInput>();
-		const project = await service.create(body);
-		realtimePublisher.publish({
-			action: "created",
-			entity: "project",
-			entityId: project.id,
-			projectId: project.id,
-			type: "project.created",
-		});
-		return c.json(project, 201);
+		const body = await c.req.json<ProjectCreateInput>();
+		try {
+			const project = await service.create(body);
+			realtimePublisher.publish({
+				action: "created",
+				entity: "project",
+				entityId: project.id,
+				projectId: project.id,
+				type: "project.created",
+			});
+			return c.json(project, 201);
+		} catch (error) {
+			if (error instanceof ProjectSetupError) {
+				return c.json(
+					{
+						message: error.message,
+						code: error.code,
+					},
+					{
+						status: error.status as 400 | 403 | 409 | 500 | 502,
+					},
+				);
+			}
+
+			throw error;
+		}
 	});
 
 	controller.patch("/:id", async (c) => {

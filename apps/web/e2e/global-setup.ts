@@ -1,20 +1,20 @@
-import { execSync } from "node:child_process";
 import { resolve } from "node:path";
 import type { FullConfig } from "@playwright/test";
 
-const run = (command: string, cwd: string) => {
-	execSync(command, {
-		cwd,
-		stdio: "inherit",
-	});
-};
-
 async function globalSetup(_config: FullConfig) {
 	const repoRoot = resolve(process.cwd(), "../..");
+	// Playwright test isolation now happens in beforeEach inside the suite.
+	// Global setup only needs infra and migrations ready.
+	const { execSync } = await import("node:child_process");
 
-	run("pnpm infra:local:up", repoRoot);
-	run("pnpm --filter api exec prisma migrate deploy", repoRoot);
-	run("pnpm --filter api db:seed", repoRoot);
+	execSync("pnpm infra:local:up", {
+		cwd: repoRoot,
+		stdio: "inherit",
+	});
+	execSync("pnpm --filter api exec prisma migrate deploy", {
+		cwd: repoRoot,
+		stdio: "inherit",
+	});
 }
 
 export default globalSetup;

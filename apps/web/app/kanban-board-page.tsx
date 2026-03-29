@@ -65,6 +65,7 @@ export const KanbanBoardPage = () => {
 		name: string;
 		abbreviation: string;
 		githubRepoUrl: string;
+		githubPat?: string;
 	}) => {
 		const createdProject = await createProjectMutation.mutateAsync({
 			...input,

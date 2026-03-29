@@ -1,3 +1,6 @@
+import { execSync } from "node:child_process";
+import { existsSync, readdirSync, rmSync } from "node:fs";
+import { resolve } from "node:path";
 import type { Page } from "@playwright/test";
 import { expect, test } from "@playwright/test";
 
@@ -5,6 +8,45 @@ const ADMIN_EMAIL = process.env.ADMIN_EMAIL ?? "admin@kainban.dev";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD ?? "ChangeMe123!";
 const API_BASE_URL =
 	process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4001";
+const PUBLIC_GITHUB_REPO_URL =
+	process.env.E2E_PUBLIC_GITHUB_REPO_URL ??
+	"https://github.com/octocat/Hello-World";
+const PRIVATE_GITHUB_REPO_URL = process.env.E2E_PRIVATE_GITHUB_REPO_URL;
+const GITHUB_PAT = process.env.E2E_GITHUB_PAT;
+const REPO_ROOT = resolve(process.cwd(), "../..");
+const WORKSPACE_ROOT =
+	process.env.WORKSPACE_ROOT ?? resolve(REPO_ROOT, "kainban-workspace");
+
+const run = (command: string) => {
+	execSync(command, {
+		cwd: REPO_ROOT,
+		stdio: "inherit",
+	});
+};
+
+const removePlaywrightWorkspaces = () => {
+	if (!existsSync(WORKSPACE_ROOT)) {
+		return;
+	}
+
+	for (const entry of readdirSync(WORKSPACE_ROOT, {
+		withFileTypes: true,
+	})) {
+		if (!entry.isDirectory() || !entry.name.startsWith("playwright-")) {
+			continue;
+		}
+
+		rmSync(resolve(WORKSPACE_ROOT, entry.name), {
+			recursive: true,
+			force: true,
+		});
+	}
+};
+
+const resetPlaywrightState = () => {
+	removePlaywrightWorkspaces();
+	run("pnpm --filter api db:seed");
+};
 
 const signIn = async (page: Page) => {
 	await page.goto("/");
@@ -37,18 +79,56 @@ const getAuthenticatedUserId = async (page: Page) => {
 	return session.user.id;
 };
 
-const createProject = async (page: Page, suffix: string) => {
+const createProject = async (
+	page: Page,
+	input: {
+		repoUrl?: string;
+		suffix: string;
+	},
+) => {
 	await page.getByRole("button", { name: "New Project" }).click();
 	const dialog = page.getByRole("dialog", { name: "Create project" });
 	await expect(dialog).toBeVisible();
-	await dialog.getByPlaceholder("Project Phoenix").fill(`Playwright ${suffix}`);
-	await dialog.getByPlaceholder("PHX").fill(`pw${suffix}`);
+	await dialog
+		.getByPlaceholder("Project Phoenix")
+		.fill(`Playwright ${input.suffix}`);
+	await dialog.getByPlaceholder("PHX").fill(`pw${input.suffix}`);
 	await dialog
 		.getByPlaceholder("https://github.com/org/repo")
-		.fill(`https://github.com/example/playwright-${suffix.toLowerCase()}`);
+		.fill(input.repoUrl ?? PUBLIC_GITHUB_REPO_URL);
 	await dialog.getByRole("button", { name: "Create", exact: true }).click();
 	await expect(
-		page.getByRole("heading", { name: `Playwright ${suffix}` }),
+		page.getByRole("heading", { name: `Playwright ${input.suffix}` }),
+	).toBeVisible();
+	await expect(dialog).not.toBeVisible();
+};
+
+const createProjectWithPatRetry = async (
+	page: Page,
+	input: {
+		githubPat: string;
+		privateRepoUrl: string;
+		suffix: string;
+	},
+) => {
+	await page.getByRole("button", { name: "New Project" }).click();
+	const dialog = page.getByRole("dialog", { name: "Create project" });
+	await expect(dialog).toBeVisible();
+	await dialog
+		.getByPlaceholder("Project Phoenix")
+		.fill(`Playwright ${input.suffix}`);
+	await dialog.getByPlaceholder("PHX").fill(`pw${input.suffix}`);
+	await dialog
+		.getByPlaceholder("https://github.com/org/repo")
+		.fill(input.privateRepoUrl);
+	await dialog.getByRole("button", { name: "Create", exact: true }).click();
+	await expect(
+		dialog.getByPlaceholder("github_pat_xxxxx"),
+	).toBeVisible();
+	await dialog.getByPlaceholder("github_pat_xxxxx").fill(input.githubPat);
+	await dialog.getByRole("button", { name: "Create", exact: true }).click();
+	await expect(
+		page.getByRole("heading", { name: `Playwright ${input.suffix}` }),
 	).toBeVisible();
 	await expect(dialog).not.toBeVisible();
 };
@@ -121,11 +201,19 @@ const moveTask = async (
 test.describe.configure({ mode: "serial" });
 
 test.describe("kanban browser flow", () => {
+	test.beforeEach(async () => {
+		resetPlaywrightState();
+	});
+
+	test.afterEach(async () => {
+		resetPlaywrightState();
+	});
+
 	test("creates a project, epic, and first task through modals", async ({
 		page,
 	}) => {
 		await signIn(page);
-		await createProject(page, "Create");
+		await createProject(page, { suffix: "Create" });
 		await createEpic(page, "Playwright Epic");
 		await createTask(page, {
 			title: "Playwright First Task",
@@ -142,7 +230,7 @@ test.describe("kanban browser flow", () => {
 		page,
 	}) => {
 		await signIn(page);
-		await createProject(page, "Flow");
+		await createProject(page, { suffix: "Flow" });
 		await createEpic(page, "Playwright Flow Epic");
 
 		await createTask(page, {
@@ -205,7 +293,7 @@ test.describe("kanban browser flow", () => {
 		await signIn(page);
 		await signIn(observerPage);
 
-		await createProject(page, "Realtime");
+		await createProject(page, { suffix: "Realtime" });
 		await expect(
 			observerPage.getByRole("button", { name: /Playwright Realtime/i }),
 		).toBeVisible();
@@ -241,7 +329,7 @@ test.describe("kanban browser flow", () => {
 				data: {
 					name: "Playwright External",
 					abbreviation: "PWE",
-					githubRepoUrl: "https://github.com/example/playwright-external",
+					githubRepoUrl: PUBLIC_GITHUB_REPO_URL,
 					ownerId,
 				},
 			},
@@ -284,5 +372,23 @@ test.describe("kanban browser flow", () => {
 
 		await expect(page.getByText("PWE-1")).toBeVisible();
 		await expect(page.getByText("External Task")).toBeVisible();
+	});
+
+	test("retries project creation with a github pat for private repositories", async ({
+		page,
+	}) => {
+		test.skip(
+			!PRIVATE_GITHUB_REPO_URL || !GITHUB_PAT,
+			"Set E2E_PRIVATE_GITHUB_REPO_URL and E2E_GITHUB_PAT to run this test.",
+		);
+
+		await signIn(page);
+		await createProjectWithPatRetry(page, {
+			suffix: "Private",
+			privateRepoUrl: PRIVATE_GITHUB_REPO_URL!,
+			githubPat: GITHUB_PAT!,
+		});
+
+		await expect(page.getByRole("button", { name: /Playwright Private/i })).toBeVisible();
 	});
 });

@@ -91,6 +91,7 @@ export interface ProjectPostInput {
 	name: string;
 	abbreviation: string;
 	githubRepoUrl: string;
+	githubPat?: string;
 	ownerId: string;
 }
 

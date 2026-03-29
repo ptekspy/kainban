@@ -1,6 +1,44 @@
 import { auth } from "../src/auth/auth.js";
-import { prisma } from "../src/db/client.js";
-import { TaskStatus } from "../src/generated/prisma/client.js";
+import { databasePool, prisma } from "../src/db/client.js";
+
+const projectSnapshots = [
+	{
+		id: "cmnbv14va0000yjs6s1ecswnb",
+		name: "Bot Market",
+		abbreviation: "BTM",
+		githubRepoUrl: "https://github.com/ptekspy/bot-market",
+		epics: [
+			{
+				id: "cmnbv1m3a0001yjs6b9nbew40",
+				name: "Project Initialisation",
+				description: null,
+			},
+		],
+		tasks: [
+			{
+				id: "cmnbv254v0002yjs6414svmmc",
+				ticketNumber: 1,
+				title: "Set up Nextjs",
+				description:
+					"Set up the repo to use nextjs, make sure to use the latest version\npnpm\ntailwind4",
+				status: "READY_FOR_DEVELOPMENT" as const,
+				epicId: "cmnbv1m3a0001yjs6b9nbew40",
+				dependencyIds: [],
+			},
+			{
+				id: "cmnbv2zfy0003yjs617st4ebr",
+				ticketNumber: 2,
+				title: "Verify Only tailwindv4",
+				description:
+					"Make sure tailwind v4 is implemented correctly\nRemove any custom css or *.module.css files and replace with tailwind4",
+				status: "TODO" as const,
+				epicId: "cmnbv1m3a0001yjs6b9nbew40",
+				dependencyIds: ["cmnbv254v0002yjs6414svmmc"],
+			},
+		],
+	},
+];
+
 const adminEmail = process.env.ADMIN_EMAIL;
 const adminPassword = process.env.ADMIN_PASSWORD;
 
@@ -28,135 +66,82 @@ const seed = async () => {
 			password: adminPassword,
 		},
 	});
-	const user = await prisma.user.findUniqueOrThrow({
+
+	const adminUser = await prisma.user.findUnique({
 		where: {
 			email: adminEmail,
 		},
 	});
 
-	const kainbanProject = await prisma.project.create({
-		data: {
-			id: "project-kainban",
-			name: "Kainban Platform",
-			abbreviation: "KAN",
-			githubRepoUrl: "https://github.com/example/kainban",
-			ownerId: user.id,
-		},
-	});
+	if (!adminUser) {
+		throw new Error("Expected seeded admin user to exist after auth sign-up.");
+	}
 
-	const docsProject = await prisma.project.create({
-		data: {
-			id: "project-docs",
-			name: "Developer Docs",
-			abbreviation: "DOC",
-			githubRepoUrl: "https://github.com/example/developer-docs",
-			ownerId: user.id,
-		},
-	});
-
-	const authEpic = await prisma.epic.create({
-		data: {
-			id: "kan-auth",
-			name: "Authentication and Access",
-			description: "Identity, permissions, and secure access workflows.",
-			projectId: kainbanProject.id,
-		},
-	});
-
-	const platformEpic = await prisma.epic.create({
-		data: {
-			id: "kan-platform",
-			name: "Platform Delivery",
-			description: "Infrastructure and release automation.",
-			projectId: kainbanProject.id,
-		},
-	});
-
-	const onboardingEpic = await prisma.epic.create({
-		data: {
-			id: "doc-onboarding",
-			name: "Onboarding",
-			description: "Developer onboarding and contribution flows.",
-			projectId: docsProject.id,
-		},
-	});
-
-	const taskOne = await prisma.task.create({
-		data: {
-			id: "task-kan-1",
-			ticketNumber: 1,
-			title: "Implement authentication",
-			description: "Set up user authentication using JWT.",
-			status: TaskStatus.READY_FOR_DEVELOPMENT,
-			projectId: kainbanProject.id,
-			epicId: authEpic.id,
-		},
-	});
-
-	const taskTwo = await prisma.task.create({
-		data: {
-			id: "task-kan-2",
-			ticketNumber: 2,
-			title: "Design database schema",
-			description: "Create ER diagrams and define database tables.",
-			status: TaskStatus.IN_DEVELOPMENT,
-			projectId: kainbanProject.id,
-			epicId: authEpic.id,
-			dependencies: {
-				connect: [{ id: taskOne.id }],
+	for (const projectSnapshot of projectSnapshots) {
+		await prisma.project.create({
+			data: {
+				id: projectSnapshot.id,
+				name: projectSnapshot.name,
+				abbreviation: projectSnapshot.abbreviation,
+				githubRepoUrl: projectSnapshot.githubRepoUrl,
+				ownerId: adminUser.id,
 			},
-		},
-	});
+		});
 
-	await prisma.task.create({
-		data: {
-			id: "task-kan-3",
-			ticketNumber: 3,
-			title: "Set up CI/CD pipeline",
-			description: "Automate testing and deployment processes.",
-			status: TaskStatus.READY_FOR_REVIEW,
-			projectId: kainbanProject.id,
-			epicId: platformEpic.id,
-			dependencies: {
-				connect: [{ id: taskTwo.id }],
-			},
-		},
-	});
+		for (const epicSnapshot of projectSnapshot.epics) {
+			await prisma.epic.create({
+				data: {
+					id: epicSnapshot.id,
+					name: epicSnapshot.name,
+					description: epicSnapshot.description,
+					projectId: projectSnapshot.id,
+				},
+			});
+		}
 
-	const docsTaskOne = await prisma.task.create({
-		data: {
-			id: "task-doc-1",
-			ticketNumber: 1,
-			title: "Write onboarding guide",
-			description: "Document local setup and contributor workflow.",
-			status: TaskStatus.TODO,
-			projectId: docsProject.id,
-			epicId: onboardingEpic.id,
-		},
-	});
+		for (const taskSnapshot of projectSnapshot.tasks) {
+			await prisma.task.create({
+				data: {
+					id: taskSnapshot.id,
+					ticketNumber: taskSnapshot.ticketNumber,
+					title: taskSnapshot.title,
+					description: taskSnapshot.description,
+					status: taskSnapshot.status,
+					projectId: projectSnapshot.id,
+					epicId: taskSnapshot.epicId,
+				},
+			});
+		}
 
-	await prisma.task.create({
-		data: {
-			id: "task-doc-2",
-			ticketNumber: 2,
-			title: "Review API examples",
-			description: "Validate code snippets against the latest API.",
-			status: TaskStatus.IN_REVIEW,
-			projectId: docsProject.id,
-			epicId: onboardingEpic.id,
-			dependencies: {
-				connect: [{ id: docsTaskOne.id }],
-			},
-		},
-	});
+		for (const taskSnapshot of projectSnapshot.tasks) {
+			if (taskSnapshot.dependencyIds.length === 0) {
+				continue;
+			}
+
+			await prisma.task.update({
+				where: {
+					id: taskSnapshot.id,
+				},
+				data: {
+					dependencies: {
+						connect: taskSnapshot.dependencyIds.map((dependencyId) => ({
+							id: dependencyId,
+						})),
+					},
+				},
+			});
+		}
+	}
 };
 
 seed()
 	.then(async () => {
 		await prisma.$disconnect();
+		await databasePool.end();
 	})
 	.catch(async (error) => {
 		console.error("Seeding failed:", error);
 		await prisma.$disconnect();
+		await databasePool.end();
 		process.exit(1);
 	});
